@@ -13,16 +13,247 @@ featured: true
 draft: false
 ---
 
-Great search optimization begins with useful pages. Next.js gives static sites a strong base because content can become HTML at build time.
+Most SEO advice you'll find online was written for WordPress sites or generic "content marketing" blogs, and it doesn't translate cleanly to a Next.js app. You're not fighting with plugins or worrying about a theme injecting bloated markup. You have direct control over the HTML, the metadata, and the rendering strategy. That's a genuine advantage, but only if you actually use it. This guide walks through what matters for SEO in a Next.js project built with the App Router, starting with the boring foundational stuff and working up to the details that actually move the needle.
 
-## Make metadata specific
+## Start with pages that deserve to rank
 
-Use the Metadata API for a meaningful title, a concise description, and a canonical URL on every page. Article pages should also set Open Graph article fields.
+Before touching a single meta tag, it's worth saying the obvious thing that gets skipped in most guides: no amount of markup fixes a page that doesn't answer a real question. Search engines have gotten good at telling the difference between a page written for a reader and a page written to hit a keyword count. If you're building a blog, a docs site, or a marketing page, the content itself is still doing most of the work. Everything below assumes you've already got that part right, and is about making sure search engines and social platforms can read your good content correctly.
 
-## Add structured data
+Next.js gives you a real structural advantage here because of how easy it makes static generation. When a page is available as static HTML at request time, crawlers get the fully rendered content immediately instead of having to execute JavaScript first. Google can render JS, but it does so in a second wave, on a delay, and with real budget constraints. Other crawlers — Bing, and especially social media link-preview bots — often don't render JavaScript at all. If your content only appears after a client-side fetch, some of these crawlers will simply never see it.
 
-JSON-LD helps search engines understand whether a page is an article, an organization, or a breadcrumb trail. Keep it aligned with visible page content.
+So the first real decision on any page is: does this need to be static, or does it genuinely need to be dynamic? Blog posts, product pages, marketing pages, documentation — almost all of it can be static. Reserve dynamic rendering for things that are actually user-specific, like a dashboard.
 
-## Keep the page fast
+## The Metadata API is the whole foundation
 
-Avoid shipping interactive JavaScript to a reader when plain HTML will do. Use client components only for interactions such as theme switching or filtering.
+Next.js has a built-in Metadata API that replaces the old pattern of manually writing `<head>` tags or reaching for a third-party package like `next-seo`. It works at the layout or page level, and it merges as it goes down the tree, so a root layout can set defaults and individual pages can override just the fields they need.
+
+Here's what a typical article page looks like:
+
+```tsx
+// app/blog/[slug]/page.tsx
+import type { Metadata } from 'next'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string }
+}): Promise<Metadata> {
+  const post = await getPostBySlug(params.slug)
+
+  if (!post) {
+    return { title: 'Post not found' }
+  }
+
+  return {
+    title: post.title,
+    description: post.description,
+    alternates: {
+      canonical: `https://example.com/blog/${post.slug}`,
+    },
+    openGraph: {
+      title: post.title,
+      description: post.description,
+      url: `https://example.com/blog/${post.slug}`,
+      type: 'article',
+      publishedTime: post.date,
+      modifiedTime: post.updated,
+      authors: [post.author],
+      images: [
+        {
+          url: post.coverImage,
+          width: 1200,
+          height: 630,
+          alt: post.title,
+        },
+      ],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.title,
+      description: post.description,
+      images: [post.coverImage],
+    },
+  }
+}
+```
+
+A few things worth calling out here because they trip people up constantly.
+
+**Titles need to be specific, not clever.** "Home" is not a title. "Blog" is not a title. Every page should have a title that would make sense if you saw it as a bare link in a list of a hundred other search results, with no other context. For an article, that usually means the actual headline. For a category page, it means naming the category and the site. Keep titles under roughly 60 characters or they get truncated in search results.
+
+**Descriptions are your pitch, not a summary.** Google frequently rewrites the description shown in search results anyway, using text pulled from the page if it thinks that matches the query better. But the description you set is still what shows up when someone shares the link on Slack, Twitter, or iMessage, so it's worth writing one that reads like a reason to click, somewhere around 150 to 160 characters.
+
+**The canonical URL matters more than people think.** If your site has any way to reach the same content through two different URLs — with or without a trailing slash, with or without query parameters, through both `/blog/post` and `/posts/post` during a migration — a canonical tag tells search engines which one is the "real" one. Without it, you risk splitting ranking signals across duplicate URLs, or having search engines pick the wrong version to index.
+
+You can also set defaults once in the root layout so you're not repeating boilerplate on every page:
+
+```tsx
+// app/layout.tsx
+import type { Metadata } from 'next'
+
+export const metadata: Metadata = {
+  metadataBase: new URL('https://example.com'),
+  title: {
+    default: 'Example Co',
+    template: '%s | Example Co',
+  },
+  description: 'Default description for pages that don\'t set their own.',
+}
+```
+
+The `title.template` field is a small detail that saves a lot of repetition — every page's title automatically gets `| Example Co` appended unless it explicitly opts out with `title.absolute`.
+
+## Structured data: helping search engines understand what a page is
+
+Metadata tags tell search engines what a page is about in a general sense. Structured data, usually written as JSON-LD, tells them specifically what kind of thing the page represents — an article, a product, a recipe, an FAQ, an organization. This is what unlocks rich results: star ratings under a product listing, the little breadcrumb trail instead of a raw URL, article cards with publish dates.
+
+There's no built-in JSON-LD helper in Next.js, but it doesn't need one. You just render a script tag with the right content:
+
+```tsx
+// app/blog/[slug]/page.tsx
+export default async function BlogPost({
+  params,
+}: {
+  params: { slug: string }
+}) {
+  const post = await getPostBySlug(params.slug)
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.title,
+    description: post.description,
+    image: post.coverImage,
+    datePublished: post.date,
+    dateModified: post.updated,
+    author: {
+      '@type': 'Person',
+      name: post.author,
+    },
+  }
+
+  return (
+    <article>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      {/* rest of the page */}
+    </article>
+  )
+}
+```
+
+A couple of practical notes. First, the `dangerouslySetInnerHTML` here is fine — you're rendering trusted JSON that you built yourself, not user input, so there's no XSS risk in the typical case. Just don't drop unsanitized user content straight into it. Second, and this is the part people get wrong most often: whatever you put in the structured data has to actually match what's visible on the page. If your JSON-LD claims a rating or an author that a human reader wouldn't be able to find anywhere in the visible content, that's the kind of mismatch that can get a site penalized rather than rewarded. Structured data is a description of the page, not a way to add invisible claims to it.
+
+For a site with multiple content types, it's worth writing small helper functions that generate the right schema for each — `Article` for blog posts, `Product` for storefronts, `BreadcrumbList` for anything with nested navigation, `Organization` on the homepage or in a shared layout. Google's own Rich Results documentation is the best reference for which fields are required versus optional for each type, and it's worth testing your final markup with their Rich Results Test tool before assuming it works.
+
+## Sitemaps and robots.txt, generated instead of hand-written
+
+Next.js supports generating both `sitemap.xml` and `robots.txt` as code instead of static files, which matters a lot for a site where content changes — new blog posts, new products, pages that get unpublished.
+
+```tsx
+// app/sitemap.ts
+import type { MetadataRoute } from 'next'
+
+export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
+  const posts = await getAllPosts()
+
+  const postEntries = posts.map((post) => ({
+    url: `https://example.com/blog/${post.slug}`,
+    lastModified: post.updated,
+    changeFrequency: 'weekly' as const,
+    priority: 0.7,
+  }))
+
+  return [
+    {
+      url: 'https://example.com',
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 1,
+    },
+    {
+      url: 'https://example.com/blog',
+      lastModified: new Date(),
+      changeFrequency: 'daily',
+      priority: 0.9,
+    },
+    ...postEntries,
+  ]
+}
+```
+
+```tsx
+// app/robots.ts
+import type { MetadataRoute } from 'next'
+
+export default function robots(): MetadataRoute.Robots {
+  return {
+    rules: {
+      userAgent: '*',
+      allow: '/',
+      disallow: ['/api/', '/admin/'],
+    },
+    sitemap: 'https://example.com/sitemap.xml',
+  }
+}
+```
+
+Both of these get built and served automatically at `/sitemap.xml` and `/robots.txt` — no manual file to remember to update every time you publish something new. It's a small thing, but stale sitemaps are a common, easy-to-avoid mistake: a sitemap that still lists pages you deleted six months ago actively wastes crawl budget and can make a search engine trust your sitemap less overall.
+
+## Rendering strategy decides whether any of this even gets seen
+
+All the metadata and structured data in the world doesn't help if the page it's attached to isn't actually reachable as HTML when a crawler visits. This is where Next.js's rendering options come in.
+
+For most content-driven pages — blog posts, docs, marketing pages, product listings that don't change every minute — static generation is the right default. Using `generateStaticParams` alongside `generateMetadata` lets Next.js build every post as HTML at build time:
+
+```tsx
+// app/blog/[slug]/page.tsx
+export async function generateStaticParams() {
+  const posts = await getAllPosts()
+  return posts.map((post) => ({ slug: post.slug }))
+}
+```
+
+If your content changes often enough that rebuilding on every publish isn't practical, Incremental Static Regeneration lets you set a revalidation window instead:
+
+```tsx
+export const revalidate = 3600 // regenerate at most once per hour
+```
+
+This gets you the SEO benefits of static HTML — instant load, no JS execution required to see content — without needing a full rebuild every time an editor hits publish.
+
+Where teams get this wrong is defaulting everything to dynamic rendering because it's simpler to reason about during development, and never revisiting that decision once the site is live. If you're not sure whether a page is being statically generated, running `next build` locally and checking the output will tell you directly — statically generated routes are marked in the build summary.
+
+## Images: the part of SEO that's really about performance
+
+Image weight is one of the most common reasons content-heavy sites load slowly, and load speed is a ranking factor on its own, separate from anything to do with metadata. The `next/image` component handles a lot of this automatically — responsive sizing, lazy loading for anything below the fold, modern formats like WebP served to browsers that support them.
+
+The part that still needs manual attention is the `alt` text. It's tempting to treat it as a formality, but it does real work: it's what screen readers announce, it's what displays if the image fails to load, and it's a genuine signal for image search. A generic `alt="cover image"` on every article gives search engines nothing to work with. Describing what's actually in the image, in plain language, is worth the extra ten seconds per image.
+
+```tsx
+import Image from 'next/image'
+
+<Image
+  src={post.coverImage}
+  alt={post.title}
+  width={1200}
+  height={630}
+  priority
+/>
+```
+
+The `priority` prop is worth using specifically on above-the-fold images like a hero or cover image — it tells Next.js to preload that image rather than lazy-loading it, which helps Largest Contentful Paint, one of the Core Web Vitals metrics that Google explicitly factors into ranking.
+
+## Internal linking still matters, and Next.js makes it cheap to get right
+
+It's easy to focus entirely on individual page optimization and forget that how pages link to each other affects SEO too. Search engines use internal links to understand which pages on a site are most important and how content relates to other content. A blog post that links to related posts, or a product page that links to its category, helps crawlers discover and understand your site structure — and it keeps human readers on the site longer, which is its own positive signal.
+
+The `next/link` component makes this essentially free to implement well, since navigation between pages doesn't cost a full page reload. There's no real excuse for a content site not to have a "related posts" section or category-level navigation that ties pages together. If you're generating this dynamically from tags or categories, it can be done with the same data source that feeds your sitemap.
+
+## What to actually check before calling a page done
+
+If you want a quick mental checklist rather than rereading this whole thing every time you ship a page, it comes down to a short list. Does the page have a specific title and description set through the Metadata API. Is there a canonical URL, especially if the content is reachable through more than one path. Is there JSON-LD that accurately describes what the page is, using fields that match what a reader would actually see. Is the page statically generated or using ISR rather than defaulting to fully dynamic rendering. Are images using `next/image` with real, descriptive alt text. And is the page actually listed in the generated sitemap.
+
+None of this replaces having something worth reading on the page in the first place. But once the content is there, Next.js removes almost every technical excuse for search engines and social platforms to misread it. The framework hands you direct control over the HTML that gets served — the only work left is actually using that control instead of leaving metadata fields blank and hoping for the best.

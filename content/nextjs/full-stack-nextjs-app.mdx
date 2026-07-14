@@ -13,12 +13,218 @@ featured: false
 draft: false
 ---
 
-Next.js can serve a complete product when you define clean boundaries between rendering, mutations, and persistence.
+There's a stretch in building any Next.js app where it stops being a frontend project and starts being a real product — the point where you need actual data persistence, real user accounts, forms that write to a database, and a deployment that won't fall over under real traffic. Next.js can genuinely carry a full-stack application through all of that without reaching for a separate backend framework, but only if you're deliberate about where boundaries sit: what runs on the server, what's exposed to the client, where validation happens, and how data moves between the two. This is a walkthrough of that whole shape, from planning through deployment.
 
-## Model the user journey first
+## Start with the user journey, not the schema
 
-List the actions people need to take and the data each screen needs. This makes route and component decisions clearer.
+It's tempting to open a project by designing the database schema first, because it feels like the "real" engineering work. In practice, starting there tends to produce a schema that's technically clean but doesn't actually match how people use the product, and you end up bolting on fields and tables later to cover cases you didn't think through up front.
 
-## Validate at the boundary
+A better starting point is a plain list of the actions a person actually takes, in order, for the core flow of the product. For something like a project management tool, that might look like: sign up, create a workspace, invite a teammate, create a project, add a task, assign the task, mark it complete, view a dashboard of what's overdue. Each of those actions implies a route, a piece of UI, and a mutation, and writing them out in plain language first makes the rest of the planning much more concrete.
 
-Validate all input on the server, return useful errors, and keep secrets out of client components.
+From there, each action maps to a rough shape:
+
+- **Sign up** → a form, a server action that creates a user record and a session, a redirect to onboarding.
+- **Create a workspace** → a form, a server action that creates a workspace row tied to the current user, a redirect to the new workspace's dashboard.
+- **Invite a teammate** → a form that collects an email, a server action that creates a pending invite and sends an email, a client-visible pending state.
+- **View a dashboard of overdue tasks** → a server component that queries tasks scoped to the current workspace and user, filtered and sorted server-side.
+
+Doing this exercise before touching code is what actually tells you what your data model needs to support, rather than guessing at a schema and hoping it fits the product later.
+
+## Structuring routes around that journey
+
+Once the actions are listed, the App Router's folder-based routing maps onto them fairly directly. A typical structure for something like this might look like:
+
+```
+app/
+  (marketing)/
+    page.tsx                → /
+    pricing/page.tsx         → /pricing
+  (auth)/
+    sign-up/page.tsx          → /sign-up
+    sign-in/page.tsx           → /sign-in
+  (app)/
+    layout.tsx                 → shared authenticated shell
+    dashboard/page.tsx          → /dashboard
+    workspaces/[id]/
+      page.tsx                   → /workspaces/:id
+      tasks/[taskId]/page.tsx      → /workspaces/:id/tasks/:taskId
+```
+
+The route groups here — `(marketing)`, `(auth)`, `(app)` — don't affect the URL at all, but they let each section have its own layout. Marketing pages get a layout with a public nav and footer. Auth pages get a minimal centered-form layout. The authenticated app gets a layout with a sidebar and workspace switcher, and critically, that layout is a natural place to check whether a session exists at all before rendering anything underneath it.
+
+## Where the data boundary actually sits
+
+This is the part that trips people up most often coming from a typical client-server split, where "frontend" and "backend" are two separate codebases talking over an API. In Next.js, that boundary still exists, it's just drawn differently — around individual functions and files rather than around two whole projects.
+
+Server components can read from a database directly, because their code never reaches the browser:
+
+```tsx
+// app/(app)/workspaces/[id]/page.tsx
+import { db } from '@/lib/db'
+import { getSession } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+
+export default async function WorkspacePage({
+  params,
+}: {
+  params: { id: string }
+}) {
+  const session = await getSession()
+  if (!session) redirect('/sign-in')
+
+  const workspace = await db.workspace.findFirst({
+    where: { id: params.id, members: { some: { userId: session.userId } } },
+  })
+
+  if (!workspace) {
+    // either doesn't exist or the user isn't a member — treat the same
+    redirect('/dashboard')
+  }
+
+  const tasks = await db.task.findMany({
+    where: { workspaceId: workspace.id },
+    orderBy: { dueDate: 'asc' },
+  })
+
+  return <TaskList workspace={workspace} tasks={tasks} />
+}
+```
+
+Notice the access check happens as part of the same query that fetches the data — filtering by `members: { some: { userId: session.userId } } }` — rather than fetching the workspace first and checking permissions afterward. This matters more than it looks like it should: a query that fetches by ID alone and checks ownership as a separate step has a narrow window where the two can drift apart, and it's a more common source of access-control bugs than people expect.
+
+Client components never touch the database directly — they can't, since their code runs in the browser — so mutations from a client component go through either a server action or a route handler.
+
+## Server actions for most mutations
+
+Server actions are the more direct path for form submissions and simple mutations, because they let you write a function that runs on the server and call it almost like a normal function from a client component, without manually wiring up a fetch call and an API route.
+
+```ts
+// app/(app)/workspaces/[id]/actions.ts
+'use server'
+
+import { z } from 'zod'
+import { db } from '@/lib/db'
+import { getSession } from '@/lib/auth'
+import { revalidatePath } from 'next/cache'
+
+const createTaskSchema = z.object({
+  workspaceId: z.string().min(1),
+  title: z.string().min(1).max(200),
+  dueDate: z.string().optional(),
+})
+
+export async function createTask(formData: FormData) {
+  const session = await getSession()
+  if (!session) throw new Error('Not authenticated')
+
+  const parsed = createTaskSchema.safeParse({
+    workspaceId: formData.get('workspaceId'),
+    title: formData.get('title'),
+    dueDate: formData.get('dueDate') || undefined,
+  })
+
+  if (!parsed.success) {
+    return { error: parsed.error.flatten().fieldErrors }
+  }
+
+  const isMember = await db.workspaceMember.findFirst({
+    where: { workspaceId: parsed.data.workspaceId, userId: session.userId },
+  })
+  if (!isMember) throw new Error('Not a member of this workspace')
+
+  await db.task.create({
+    data: {
+      title: parsed.data.title,
+      dueDate: parsed.data.dueDate,
+      workspaceId: parsed.data.workspaceId,
+      createdBy: session.userId,
+    },
+  })
+
+  revalidatePath(`/workspaces/${parsed.data.workspaceId}`)
+}
+```
+
+```tsx
+'use client'
+
+import { createTask } from './actions'
+
+export default function NewTaskForm({ workspaceId }: { workspaceId: string }) {
+  return (
+    <form action={createTask}>
+      <input type="hidden" name="workspaceId" value={workspaceId} />
+      <input name="title" placeholder="Task title" required />
+      <input name="dueDate" type="date" />
+      <button type="submit">Add task</button>
+    </form>
+  )
+}
+```
+
+Notice the validation and the membership check both happen inside the server action, not in the client component. This is the single most important habit to build for a full-stack Next.js app: **never trust anything that arrives from the client, even a hidden form field.** A `workspaceId` sitting in a hidden input is just as editable by an attacker as any other input on the page — it's convenient for passing context, but it carries no more trust than a value typed directly into a visible text field. The server action re-validates the shape of the whole payload with Zod and re-checks membership independently, because the client-side code that rendered the form is not a security boundary — it's just a UI convenience, and anyone can call the server action directly with arbitrary data if they want to.
+
+## Route handlers for everything else
+
+Server actions cover most form-driven mutations well, but they're not the right fit for everything. Anything that needs to be called from outside a form — a webhook from a payment provider, an endpoint a mobile client or third-party integration needs to hit, or a response that isn't a simple redirect or revalidation — belongs in a route handler instead:
+
+```ts
+// app/api/webhooks/stripe/route.ts
+import { headers } from 'next/headers'
+import { stripe } from '@/lib/stripe'
+import { db } from '@/lib/db'
+
+export async function POST(req: Request) {
+  const body = await req.text()
+  const signature = headers().get('stripe-signature')
+
+  let event
+  try {
+    event = stripe.webhooks.constructEvent(
+      body,
+      signature!,
+      process.env.STRIPE_WEBHOOK_SECRET!
+    )
+  } catch (err) {
+    return new Response('Invalid signature', { status: 400 })
+  }
+
+  if (event.type === 'checkout.session.completed') {
+    const session = event.data.object
+    await db.subscription.update({
+      where: { stripeCustomerId: session.customer as string },
+      data: { status: 'active' },
+    })
+  }
+
+  return new Response('ok', { status: 200 })
+}
+```
+
+The signature verification here is doing the same job as the membership check in the server action above — confirming that the request is genuinely from Stripe and not from anyone who found the URL and sent a fake payload. Any route handler that accepts data from an external source needs some equivalent of this: a signature, an API key, a session check — something that doesn't just trust the shape of the incoming request.
+
+## Keeping secrets where they belong
+
+Environment variables in a Next.js project are only exposed to the browser if their name is explicitly prefixed with `NEXT_PUBLIC_`. Anything without that prefix — a database connection string, a Stripe secret key, a signing secret — stays server-only automatically, but that protection only holds if the variable is actually read inside server-only code: a server component, a server action, or a route handler. The moment a value like `process.env.STRIPE_SECRET_KEY` gets referenced inside a file that also gets imported into a client component, bundlers can end up including it in the client bundle depending on how the import graph resolves, which defeats the whole protection.
+
+The safer habit is to keep any code that touches a secret in files that are unambiguously server-only — a `lib/stripe.ts` that's only ever imported from server actions and route handlers, never from a `'use client'` file — rather than relying purely on the naming convention to save you.
+
+## Choosing where actual state should live
+
+A recurring design question in a full-stack app is where a given piece of state belongs: the database, a session, the URL, or client-side React state. A rough rule that holds up well: if it needs to survive a page refresh or be shared across devices, it belongs in the database. If it's specific to the current authenticated session but not permanent — like which workspace is currently active — a session or cookie is usually the right place. If it's about what's currently visible on screen and should be shareable or bookmarkable — an open filter, a selected tab, a search query — the URL's search params are underused for this and often better than client state, since `useSearchParams` and `router.push` let you keep that state in the URL without wiring up a separate state management layer. Reach for local client state, `useState` or otherwise, only for things that are genuinely ephemeral and specific to one render of one component, like whether a dropdown is currently open.
+
+## Deployment: what actually needs attention
+
+By the time an app has server actions, route handlers, and a real database, deployment stops being just "push to a host" and needs a few specific things checked.
+
+**Database connection handling** matters more than people expect, especially with serverless deployment models where each request can spin up a new function instance. A connection pool sized for a traditional long-running server can exhaust a database's connection limit quickly under serverless concurrency, so using a pooling-aware client, or a managed pooler in front of the database, is worth setting up before traffic arrives rather than after a production incident.
+
+**Environment variables** need to be set in the hosting platform itself, not just in a local `.env` file, and it's worth double-checking that secrets aren't accidentally committed to the repository — a `.env.local` in `.gitignore` from day one avoids an entire category of avoidable mistakes.
+
+**Revalidation strategy** deserves a second look once real users are involved. `revalidatePath` and `revalidateTag` calls inside server actions need to actually cover every path that displays data affected by a given mutation — a task update that only revalidates the task's own page but not the dashboard that lists overdue tasks will leave the dashboard showing stale data until its own cache window expires.
+
+**Error visibility** in production is easy to forget until something breaks silently. Wiring up actual error logging — even something simple that captures thrown errors from route handlers and server actions — is worth doing before launch, since the alternative is finding out about failures from a user's support email instead of a dashboard.
+
+## The shape to keep in mind
+
+The through-line across all of this is that a full-stack Next.js app doesn't really have a single "backend" in the traditional sense — it has server-only code distributed across server components, server actions, and route handlers, each with a specific job, and a client-side layer that's kept deliberately thin: rendering UI, collecting input, and calling into the server layer rather than doing anything sensitive itself. Keeping that split clear — validate on the server, never trust client input regardless of where it came from, keep secrets in files that are unambiguously server-only — is most of what separates a full-stack Next.js app that holds up under real use from one that quietly has a hole in it somewhere nobody noticed until it mattered.

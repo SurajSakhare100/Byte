@@ -13,12 +13,282 @@ featured: false
 draft: false
 ---
 
-Array methods help you express collection work without manual loops. The most useful distinction is whether a method creates a new array or changes the original one.
+Array methods help you express collection work without manual loops. The most useful distinction is whether a method creates a new array or changes the original one. Once you know which category a method falls into, the rest of the array API stops feeling like a list to memorize and starts feeling like a small set of patterns you reuse everywhere.
+
+This guide walks through the methods you'll actually use on a normal week of work, with plain examples for each one.
 
 ## Transform with map
 
 `map` returns one new value for every input item. Use it to produce display data or reshape API results.
 
+```js
+const users = [
+  { id: 1, firstName: 'Ana', lastName: 'Lopez' },
+  { id: 2, firstName: 'Ben', lastName: 'Cole' },
+];
+
+const fullNames = users.map(user => `${user.firstName} ${user.lastName}`);
+// ['Ana Lopez', 'Ben Cole']
+```
+
+The array you get back is always the same length as the one you started with. If you want fewer items, `map` is the wrong tool — that's a job for `filter`. A common mistake is using `map` when you only need side effects, like logging:
+
+```js
+// Don't do this
+users.map(user => console.log(user.firstName));
+
+// Do this instead
+users.forEach(user => console.log(user.firstName));
+```
+
+`map` builds a new array whether you use it or not, so throwing away the result wastes memory and confuses anyone reading the code later. `forEach` doesn't return anything useful — it's built for side effects, not transformation.
+
 ## Select with filter
 
 `filter` keeps only items that pass a condition. It is ideal for search, permissions, and status views.
+
+```js
+const orders = [
+  { id: 101, status: 'shipped' },
+  { id: 102, status: 'pending' },
+  { id: 103, status: 'shipped' },
+];
+
+const shipped = orders.filter(order => order.status === 'shipped');
+// [{ id: 101, status: 'shipped' }, { id: 103, status: 'shipped' }]
+```
+
+The callback should return `true` or `false`. Anything truthy or falsy works, but keeping it a real boolean makes the code easier to read six months from now:
+
+```js
+const inStock = products.filter(product => product.quantity > 0);
+const searchResults = products.filter(product =>
+  product.name.toLowerCase().includes(searchTerm.toLowerCase())
+);
+```
+
+`map` and `filter` chain together well, since both return arrays:
+
+```js
+const shippedIds = orders
+  .filter(order => order.status === 'shipped')
+  .map(order => order.id);
+// [101, 103]
+```
+
+Read that chain left to right: first narrow down to shipped orders, then pull out just the ids you need.
+
+## Combine with reduce
+
+`reduce` takes an array and turns it into one value — a number, a string, an object, even another array. It's the most flexible method here, and also the one people avoid the longest because the syntax looks unfamiliar at first.
+
+```js
+const cart = [
+  { name: 'Book', price: 12 },
+  { name: 'Pen', price: 3 },
+  { name: 'Notebook', price: 7 },
+];
+
+const total = cart.reduce((sum, item) => sum + item.price, 0);
+// 22
+```
+
+The second argument to `reduce` (here, `0`) is the starting value. On each pass, the callback gets the running total so far and the current item, and returns the new running total.
+
+`reduce` isn't only for sums. You can build an object that groups items by a field:
+
+```js
+const orders = [
+  { id: 1, status: 'shipped' },
+  { id: 2, status: 'pending' },
+  { id: 3, status: 'shipped' },
+  { id: 4, status: 'cancelled' },
+];
+
+const byStatus = orders.reduce((groups, order) => {
+  const key = order.status;
+  if (!groups[key]) groups[key] = [];
+  groups[key].push(order);
+  return groups;
+}, {});
+
+// {
+//   shipped: [{...}, {...}],
+//   pending: [{...}],
+//   cancelled: [{...}]
+// }
+```
+
+A word of caution: once a `reduce` callback grows past five or six lines, it usually reads better as a plain `for` loop or as a couple of chained methods. `reduce` is powerful, but power isn't the same as clarity — use it when the shape of the problem is genuinely "combine everything into one thing," not just because it feels clever.
+
+## Find one item with find and findIndex
+
+`filter` gives you every match. Sometimes you only want the first one.
+
+```js
+const users = [
+  { id: 1, name: 'Ana' },
+  { id: 2, name: 'Ben' },
+  { id: 3, name: 'Cara' },
+];
+
+const user = users.find(u => u.id === 2);
+// { id: 2, name: 'Ben' }
+
+const index = users.findIndex(u => u.id === 2);
+// 1
+```
+
+`find` returns the item itself, or `undefined` if nothing matches. `findIndex` returns the position, or `-1` if nothing matches. Always check for that missing case before you use the result:
+
+```js
+const user = users.find(u => u.id === 99);
+if (!user) {
+  console.log('No user with that id');
+} else {
+  console.log(user.name);
+}
+```
+
+Skipping that check is one of the most common sources of "cannot read property of undefined" errors.
+
+## Ask a yes-or-no question with some and every
+
+`some` checks if at least one item passes a test. `every` checks if all items pass.
+
+```js
+const cart = [
+  { name: 'Shirt', inStock: true },
+  { name: 'Shoes', inStock: false },
+];
+
+const hasOutOfStockItem = cart.some(item => !item.inStock);
+// true
+
+const allInStock = cart.every(item => item.inStock);
+// false
+```
+
+These two show up a lot in form validation and permission checks:
+
+```js
+const canSubmit = requiredFields.every(field => field.value.trim() !== '');
+const hasAdminRole = user.roles.some(role => role === 'admin');
+```
+
+Both stop as soon as they know the answer. `some` stops at the first `true`; `every` stops at the first `false`. On large arrays this can matter for performance, but the bigger benefit is that the code reads exactly like the question you're asking.
+
+## Check membership with includes
+
+If you just need to know whether a value exists in an array, `includes` is simpler than `some`:
+
+```js
+const allowedRoles = ['admin', 'editor', 'owner'];
+const canEdit = allowedRoles.includes(user.role);
+```
+
+Use `some` when you're checking a condition on objects. Use `includes` when you're checking whether a plain value — a string, a number — is already in the list.
+
+## Mutating methods: handle with care
+
+Everything above returns a new array and leaves the original untouched. A few common methods work the opposite way — they change the array in place.
+
+```js
+const numbers = [3, 1, 4, 1, 5];
+
+numbers.sort();        // changes numbers directly
+numbers.reverse();      // changes numbers directly
+numbers.push(9);        // changes numbers directly
+numbers.splice(1, 2);   // changes numbers directly
+```
+
+This matters most with `sort`, because it's easy to forget it mutates:
+
+```js
+const scores = [40, 10, 90, 20];
+const sorted = scores.sort();
+
+console.log(scores === sorted); // true — same array, not a copy!
+```
+
+If you need the original order preserved somewhere else in your code — say, a React component holding the array in state — make a copy first:
+
+```js
+const sortedCopy = [...scores].sort((a, b) => a - b);
+```
+
+Also worth remembering: `sort` compares items as strings by default, which gives strange results with numbers.
+
+```js
+[10, 1, 21, 2].sort();
+// [1, 10, 2, 21]  — not what most people expect
+```
+
+Pass a comparator function to sort numbers correctly:
+
+```js
+[10, 1, 21, 2].sort((a, b) => a - b);
+// [1, 2, 10, 21]
+```
+
+## Flattening nested arrays
+
+If your data comes back as an array of arrays — common with grouped API responses — `flat` and `flatMap` clean it up.
+
+```js
+const nested = [[1, 2], [3, 4], [5]];
+const flat = nested.flat();
+// [1, 2, 3, 4, 5]
+```
+
+`flatMap` runs `map` first, then flattens the result by one level. It's handy when each item can produce zero, one, or several outputs:
+
+```js
+const sentences = ['hello world', 'goodbye now'];
+const words = sentences.flatMap(sentence => sentence.split(' '));
+// ['hello', 'world', 'goodbye', 'now']
+```
+
+Doing the same thing with `map` alone would give you an array of arrays — `[['hello','world'], ['goodbye','now']]` — which usually isn't what you want.
+
+## Picking the right method
+
+A short way to decide which method fits:
+
+- Need the same number of items back, just changed? **map**
+- Need fewer items, based on a condition? **filter**
+- Need one final value out of the whole array? **reduce**
+- Need just one matching item, or its position? **find** / **findIndex**
+- Need a true/false answer about the whole array? **some** / **every**
+- Just checking if a value is present? **includes**
+- Need to change the array itself, right where it lives? **sort**, **push**, **splice**, and friends — but copy first if anything else depends on the original order
+
+## A realistic example
+
+Here's how several of these come together in one small piece of real code — building a summary of orders for a dashboard:
+
+```js
+const orders = [
+  { id: 1, status: 'shipped', total: 42 },
+  { id: 2, status: 'pending', total: 18 },
+  { id: 3, status: 'shipped', total: 65 },
+  { id: 4, status: 'cancelled', total: 10 },
+];
+
+const shippedOrders = orders.filter(order => order.status === 'shipped');
+const shippedTotal = shippedOrders.reduce((sum, order) => sum + order.total, 0);
+const hasPendingOrders = orders.some(order => order.status === 'pending');
+const biggestOrder = orders.reduce((max, order) =>
+  order.total > max.total ? order : max
+);
+
+console.log(shippedTotal);        // 107
+console.log(hasPendingOrders);    // true
+console.log(biggestOrder.id);     // 3
+```
+
+Nothing here needs a manual `for` loop or an index variable. Each line answers one clear question, and you can read the whole thing top to bottom without holding much in your head at once.
+
+## What to remember
+
+Array methods aren't a trick or a shortcut — they're just names for things you were already doing with loops. `map` transforms, `filter` narrows, `reduce` combines, `find` and `some`/`every` ask questions, and a small group of methods change the array directly instead of copying it. Once you know which bucket a method belongs to, picking the right one for a given line of code gets a lot faster.

@@ -13,12 +13,237 @@ featured: false
 draft: false
 ---
 
-The App Router maps folders in `app/` to routes. Files such as `page.tsx`, `layout.tsx`, and `loading.tsx` describe what each route renders.
+If you learned Next.js through the old Pages Router and you're now looking at an `app/` folder full of files called `page.tsx` and `layout.tsx`, the mental model doesn't fully carry over. It's not a different flavor of the same idea — it's built around a genuinely different default: components render on the server unless you say otherwise, routing is defined by folder structure rather than file names alone, and a handful of special files (`layout`, `loading`, `error`, `not-found`) let you describe states that used to require manual wiring. This is a working guide to how the pieces actually fit together, written for someone who wants to understand the system well enough to make good decisions, not just copy a pattern.
 
-## Start with server components
+## Folders are routes
 
-Components are server components by default. They can read local files and fetch data without adding that code to the browser bundle.
+In the App Router, every folder inside `app/` that contains a `page.tsx` file becomes a route, and the folder path maps directly to the URL path.
 
-## Add client code deliberately
+```
+app/
+  page.tsx              → /
+  about/
+    page.tsx             → /about
+  blog/
+    page.tsx             → /blog
+    [slug]/
+      page.tsx            → /blog/:slug
+```
 
-Use the `'use client'` directive only for browser interactions such as state, event handlers, and effects.
+The square brackets mark a dynamic segment. `[slug]` matches any single path segment and makes it available as a parameter inside the page component. If you need to match multiple segments at once — a nested docs path like `/docs/guides/setup`, for instance — a catch-all segment written as `[...slug]` captures the rest of the path as an array.
+
+What's easy to miss coming from the Pages Router is that a folder by itself does nothing. `app/dashboard/` with no `page.tsx` inside it is not a route — it's just a folder, often used purely for organizing layouts or components that don't need their own URL. Only the presence of `page.tsx` actually creates a reachable page. This is deliberate: it lets you nest folders for structure or shared layout without every level of nesting becoming a URL by accident.
+
+## Server components are the default, and that's the whole point
+
+This is the single biggest shift from the Pages Router, and it's worth sitting with rather than skimming past. Every component inside `app/` is a **server component** unless you explicitly opt out. Server components render on the server, and — this is the part that actually matters in practice — their code never gets shipped to the browser at all. Not a smaller version of it. None of it.
+
+That means a server component can do things a client-side React component never could without extra machinery:
+
+```tsx
+// app/blog/[slug]/page.tsx
+import fs from 'fs'
+import path from 'path'
+
+export default async function BlogPost({
+  params,
+}: {
+  params: { slug: string }
+}) {
+  const filePath = path.join(process.cwd(), 'content', `${params.slug}.md`)
+  const content = fs.readFileSync(filePath, 'utf8')
+
+  return <article>{content}</article>
+}
+```
+
+Reading a file directly, querying a database, calling an internal API with a secret key — all of this can happen right inside the component, with `await` used directly in the function body, no `useEffect`, no loading state to manage by hand, no API route acting as a middleman just to keep credentials off the client. The component is `async` and Next.js handles the rest.
+
+This changes how you think about data fetching in general. In the Pages Router, a page component fetching data usually meant `getServerSideProps` or `getStaticProps` living alongside the component, passing data down as props. In the App Router, the component itself does the fetching, right where the data is used:
+
+```tsx
+async function getPost(slug: string) {
+  const res = await fetch(`https://api.example.com/posts/${slug}`)
+  return res.json()
+}
+
+export default async function BlogPost({
+  params,
+}: {
+  params: { slug: string }
+}) {
+  const post = await getPost(params.slug)
+  return <article>{post.content}</article>
+}
+```
+
+Next.js extends the native `fetch` function with its own caching layer, so a call like this gets deduplicated and cached automatically across a request unless you tell it not to. That caching behavior is configurable per call:
+
+```tsx
+// cached indefinitely until manually revalidated
+fetch(url, { cache: 'force-cache' })
+
+// revalidated at most once per hour
+fetch(url, { next: { revalidate: 3600 } })
+
+// never cached, always fresh
+fetch(url, { cache: 'no-store' })
+```
+
+Choosing the right one of these for a given fetch is a real decision, not a formality. Content that changes rarely — a blog post, a marketing page — should lean toward `force-cache` or a long revalidation window. Anything genuinely tied to a specific request, like a user's own account data, needs `no-store` so it isn't accidentally shared between visitors.
+
+## Client components, added deliberately
+
+Not everything can be a server component, and that's fine — the point isn't to avoid client components, it's to use them only where the browser is genuinely required. Anything involving `useState`, `useEffect`, event handlers like `onClick`, or browser-only APIs needs the `'use client'` directive at the top of the file:
+
+```tsx
+'use client'
+
+import { useState } from 'react'
+
+export default function LikeButton() {
+  const [liked, setLiked] = useState(false)
+
+  return (
+    <button onClick={() => setLiked(!liked)}>
+      {liked ? 'Liked' : 'Like'}
+    </button>
+  )
+}
+```
+
+The directive marks the boundary — everything imported into this file from this point in the tree downward gets bundled for the browser, because a client component might render other client components as children. This is why the common pattern is to keep client components small and specific: a `<LikeButton>`, a `<ThemeToggle>`, a `<SearchFilter>` — self-contained pieces of interactivity — rather than marking an entire page `'use client'` just because one button on it needs state.
+
+A pattern that's easy to miss when you're used to older React conventions: server components can render client components as children, and you can pass server-fetched data into a client component as props. What you can't do is the reverse — a client component can't import and directly render a server component, because by the time it's running in the browser, there's no server left to render on. If a client component needs something server-rendered nested inside it, the usual approach is to pass it in as `children` from a server component parent:
+
+```tsx
+// Server component
+import ClientWrapper from './client-wrapper'
+import ServerContent from './server-content'
+
+export default function Page() {
+  return (
+    <ClientWrapper>
+      <ServerContent />
+    </ClientWrapper>
+  )
+}
+```
+
+```tsx
+// client-wrapper.tsx
+'use client'
+
+export default function ClientWrapper({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return <div className="wrapper">{children}</div>
+}
+```
+
+`ServerContent` still renders on the server even though it ends up nested inside a client component, because it was composed from the server component parent, not imported directly by the client one.
+
+## Layouts: shared UI that doesn't re-render on navigation
+
+A `layout.tsx` file wraps every page and nested layout below it in the folder tree, and — this is the part that matters practically — it doesn't unmount and remount when you navigate between sibling pages. A layout with a header and sidebar stays mounted while only the page content underneath it swaps out, which means state inside the layout (like a sidebar's scroll position, or an open/closed menu state) survives navigation without any extra work.
+
+```tsx
+// app/dashboard/layout.tsx
+export default function DashboardLayout({
+  children,
+}: {
+  children: React.ReactNode
+}) {
+  return (
+    <div className="dashboard">
+      <Sidebar />
+      <main>{children}</main>
+    </div>
+  )
+}
+```
+
+Layouts nest. A root `app/layout.tsx` wraps the entire application (and is the only place `<html>` and `<body>` tags belong), and any folder further down the tree can add its own `layout.tsx` that wraps just that section:
+
+```
+app/
+  layout.tsx           → wraps everything
+  dashboard/
+    layout.tsx           → wraps everything under /dashboard
+    page.tsx              → /dashboard
+    settings/
+      page.tsx             → /dashboard/settings, wrapped by both layouts
+```
+
+A `template.tsx` file looks similar but behaves differently in one specific way: unlike a layout, a template does remount on every navigation, which is occasionally useful if you specifically want an enter/exit animation to replay or effects to rerun on every page change, but it's the exception rather than the default choice.
+
+## Loading and error states as files, not conditionals
+
+Two of the more genuinely useful additions in the App Router are `loading.tsx` and `error.tsx`, because they replace manual loading-state and error-boundary code with a convention Next.js wires up automatically.
+
+Drop a `loading.tsx` in the same folder as a `page.tsx`, and Next.js automatically shows it while the page (and any data fetching inside it) is still resolving — powered by React Suspense under the hood, without you writing a `<Suspense>` boundary by hand:
+
+```tsx
+// app/blog/[slug]/loading.tsx
+export default function Loading() {
+  return <div className="skeleton">Loading post…</div>
+}
+```
+
+`error.tsx` works similarly for errors thrown during rendering, and it has to be a client component because it needs to use the `reset` function passed in as a prop to let a user retry:
+
+```tsx
+// app/blog/[slug]/error.tsx
+'use client'
+
+export default function Error({
+  error,
+  reset,
+}: {
+  error: Error
+  reset: () => void
+}) {
+  return (
+    <div>
+      <p>Something went wrong loading this post.</p>
+      <button onClick={() => reset()}>Try again</button>
+    </div>
+  )
+}
+```
+
+Both files scope to the folder they're in and everything below it, so you can have a broad, generic error page at the root and a more specific one deeper in the tree for a section that needs different handling.
+
+## Route groups and parallel routes, for when folder structure alone isn't enough
+
+Two features exist specifically for organizing more complex routing needs without changing the actual URL.
+
+A route group wraps a folder name in parentheses, like `(marketing)`, and that folder name is excluded from the URL entirely — it's purely for organizing the codebase or applying a shared layout to a set of routes that don't share a URL prefix:
+
+```
+app/
+  (marketing)/
+    layout.tsx
+    about/
+      page.tsx           → /about
+    pricing/
+      page.tsx            → /pricing
+  (app)/
+    layout.tsx
+    dashboard/
+      page.tsx            → /dashboard
+```
+
+Here, `/about` and `/pricing` share a marketing-focused layout while `/dashboard` gets a completely different one, without any of the group names showing up in the actual URLs.
+
+Parallel routes, marked with an `@` prefix like `@analytics`, let you render more than one independent page inside the same layout simultaneously — useful for something like a dashboard where a sidebar section and a main content section each have their own loading and error states and can navigate somewhat independently. This is a more advanced case, and most projects go a long time without needing it, but it's worth knowing the capability exists for the day a dashboard-style UI actually calls for it.
+
+## Metadata lives next to the route it describes
+
+Since this is fundamentally a routing and rendering guide rather than an SEO one, it's worth only a brief mention here: each `page.tsx` or `layout.tsx` can export a `metadata` object or a `generateMetadata` function, and Next.js merges these down the tree automatically, so a root layout can set site-wide defaults while individual pages override just the fields specific to them. It's a small detail, but it means the thing describing a page to search engines lives in the same file as the page itself, rather than in a separate config scattered elsewhere.
+
+## Putting the model together
+
+The pattern that ties all of this together is that the App Router is trying to move decisions that used to happen in code — where does loading state live, which layout wraps this page, does this component need to touch the browser at all — into the file system itself, where they're visible just by looking at the folder structure. A `page.tsx` next to a `loading.tsx` and an `error.tsx` tells you everything about how that route handles its three main states without opening any of them. A `layout.tsx` sitting above several route folders tells you what's shared without hunting through imports. And the server-component default means that by the time you actually add `'use client'` somewhere, it's a real signal — this specific piece needs the browser — rather than a default applied unthinkingly to every component in the tree, which is closer to how a well-structured React app should have worked all along.

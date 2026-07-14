@@ -13,12 +13,295 @@ featured: false
 draft: false
 ---
 
-MDX keeps writing close to the codebase while allowing interactive components inside articles.
+A lot of teams reach for a headless CMS the moment they need a blog, and then spend the next few months fighting webhooks, preview environments, and a content model that never quite matches what the writers actually want. For a lot of blogs — technical ones especially — that's more infrastructure than the job needs. MDX lets you keep posts as files in your repo, written in Markdown with the option to drop in real React components when plain text isn't enough, and Next.js can turn all of it into fast, static, well-optimized pages. This is a practical walkthrough of building that setup properly, from reading the files off disk to making sure search engines and social platforms understand every page correctly.
 
-## Generate pages at build time
+## Why MDX instead of a database-backed blog
 
-Read frontmatter and content from local files, then create static paths for every published article.
+Before getting into implementation, it's worth being clear about the tradeoff, because MDX isn't automatically the right choice for every blog.
 
-## Make every page understandable
+Files-as-content works well when the people writing content are comfortable with Markdown and a code editor, when you want content to be version-controlled alongside the rest of the site, and when you don't need a large non-technical team publishing constantly through a visual editor. It gets uncomfortable when you have a marketing team who wants a WYSIWYG interface, or when you need scheduled publishing, workflow approvals, or multi-author permissions. If that's your situation, a headless CMS is worth the extra complexity. But for a developer-focused blog, a documentation site, or a small team that's fine writing in Markdown, MDX plus the Next.js App Router gets you a genuinely fast, simple, and SEO-solid result with almost no infrastructure.
 
-Set a unique title, description, canonical URL, social metadata, and relevant structured data.
+## Setting up the content folder and frontmatter
+
+Start with a folder of Markdown files, each with YAML frontmatter at the top for the metadata that doesn't belong in the body of the post:
+
+```
+content/
+  posts/
+    seo-friendly-nextjs-mdx-blog.mdx
+    another-post.mdx
+```
+
+```mdx
+---
+title: How to Create an SEO-Friendly Next.js Blog Using MDX
+description: Build a static MDX blog with strong metadata and structured data.
+slug: seo-friendly-nextjs-mdx-blog
+date: 2026-01-25
+updated: 2026-01-25
+author: byte team
+coverImage: /assets/articles/nextjs/nextjs-seo-mdx-cover.webp
+tags: [Next.js, MDX, SEO]
+draft: false
+---
+
+Regular Markdown content goes here, and you can also drop in a React component
+when you need one:
+
+<Callout type="tip">
+  This is a real component, rendered inside the article.
+</Callout>
+```
+
+The frontmatter fields matter more than they look like they do, because they feed almost everything downstream: the page title, the meta description, the canonical URL, the Open Graph image, the JSON-LD, and the sitemap entry all come from this same handful of fields. Getting the frontmatter schema right up front saves a lot of rework later, so it's worth deciding early which fields are required versus optional, and validating that every post actually has them.
+
+## Reading and parsing posts
+
+`gray-matter` handles splitting the frontmatter from the content body, and it pairs well with a small set of utility functions that centralize all file-system reads in one place:
+
+```ts
+// lib/posts.ts
+import fs from 'fs'
+import path from 'path'
+import matter from 'gray-matter'
+
+const POSTS_DIR = path.join(process.cwd(), 'content/posts')
+
+export type PostMeta = {
+  title: string
+  description: string
+  slug: string
+  date: string
+  updated: string
+  author: string
+  coverImage: string
+  tags: string[]
+  draft: boolean
+}
+
+export function getAllPosts(): PostMeta[] {
+  const files = fs.readdirSync(POSTS_DIR)
+
+  return files
+    .map((filename) => {
+      const filePath = path.join(POSTS_DIR, filename)
+      const source = fs.readFileSync(filePath, 'utf8')
+      const { data } = matter(source)
+      return data as PostMeta
+    })
+    .filter((post) => !post.draft)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+}
+
+export function getPostBySlug(slug: string) {
+  const filePath = path.join(POSTS_DIR, `${slug}.mdx`)
+  if (!fs.existsSync(filePath)) return null
+
+  const source = fs.readFileSync(filePath, 'utf8')
+  const { data, content } = matter(source)
+
+  return { meta: data as PostMeta, content }
+}
+```
+
+Keeping this logic in one shared module matters for more than tidiness. The sitemap, the RSS feed, the blog index page, and each individual post page all need the same list of published posts, and you want a single source of truth rather than four slightly different implementations that eventually drift out of sync.
+
+## Rendering MDX content
+
+For actually turning the MDX content string into React output, `next-mdx-remote` is a solid choice because it compiles content at request or build time rather than requiring a build-time-only import pattern:
+
+```tsx
+// app/blog/[slug]/page.tsx
+import { MDXRemote } from 'next-mdx-remote/rsc'
+import { getPostBySlug, getAllPosts } from '@/lib/posts'
+import { notFound } from 'next/navigation'
+import { mdxComponents } from '@/components/mdx-components'
+
+export async function generateStaticParams() {
+  const posts = getAllPosts()
+  return posts.map((post) => ({ slug: post.slug }))
+}
+
+export default async function PostPage({
+  params,
+}: {
+  params: { slug: string }
+}) {
+  const post = getPostBySlug(params.slug)
+  if (!post) notFound()
+
+  return (
+    <article>
+      <h1>{post.meta.title}</h1>
+      <MDXRemote source={post.content} components={mdxComponents} />
+    </article>
+  )
+}
+```
+
+The `mdxComponents` map is where you can swap out default HTML elements for styled or interactive equivalents — a custom `<Callout>` for tips and warnings, a syntax-highlighted `<CodeBlock>`, a `<Table>` with proper responsive behavior. This is the actual advantage MDX has over plain Markdown: the writing stays close to normal prose, but you're not limited to what plain Markdown can express when a post genuinely benefits from an interactive example.
+
+## Metadata, generated from the same frontmatter
+
+This is where the earlier investment in a clean frontmatter schema pays off directly, because `generateMetadata` can pull straight from it without any extra data-fetching:
+
+```tsx
+// app/blog/[slug]/page.tsx
+import type { Metadata } from 'next'
+import { getPostBySlug } from '@/lib/posts'
+
+export async function generateMetadata({
+  params,
+}: {
+  params: { slug: string }
+}): Promise<Metadata> {
+  const post = getPostBySlug(params.slug)
+  if (!post) return { title: 'Post not found' }
+
+  const url = `https://example.com/blog/${post.meta.slug}`
+
+  return {
+    title: post.meta.title,
+    description: post.meta.description,
+    alternates: { canonical: url },
+    openGraph: {
+      title: post.meta.title,
+      description: post.meta.description,
+      url,
+      type: 'article',
+      publishedTime: post.meta.date,
+      modifiedTime: post.meta.updated,
+      authors: [post.meta.author],
+      images: [{ url: post.meta.coverImage, width: 1200, height: 630 }],
+    },
+    twitter: {
+      card: 'summary_large_image',
+      title: post.meta.title,
+      description: post.meta.description,
+      images: [post.meta.coverImage],
+    },
+  }
+}
+```
+
+A common mistake worth flagging here: teams write this once, get it working for a single test post, and never check what happens when a field is missing — a post without a cover image, or a description left blank because the writer forgot. It's worth adding fallbacks (a default site-wide cover image, a description generated from the first line of content) so a missing field degrades gracefully instead of producing a broken-looking social preview.
+
+## Structured data for articles
+
+JSON-LD tells search engines specifically that a page is an `Article`, with a real publish date, author, and image — the fields that unlock the article-style rich results you see in Google's search listings.
+
+```tsx
+export default async function PostPage({
+  params,
+}: {
+  params: { slug: string }
+}) {
+  const post = getPostBySlug(params.slug)
+  if (!post) notFound()
+
+  const jsonLd = {
+    '@context': 'https://schema.org',
+    '@type': 'Article',
+    headline: post.meta.title,
+    description: post.meta.description,
+    image: post.meta.coverImage,
+    datePublished: post.meta.date,
+    dateModified: post.meta.updated,
+    author: { '@type': 'Person', name: post.meta.author },
+  }
+
+  return (
+    <article>
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+      />
+      <h1>{post.meta.title}</h1>
+      <MDXRemote source={post.content} components={mdxComponents} />
+    </article>
+  )
+}
+```
+
+As with any structured data, the rule is simple: everything in the JSON-LD needs to be genuinely visible on the page. If the schema claims an author or a publish date that isn't shown anywhere a human reader would see it, that's a mismatch search engines can flag rather than reward.
+
+## Sitemap and RSS from the same post list
+
+Because `getAllPosts` is already the shared source of truth, both the sitemap and an RSS feed become short functions that reuse it rather than separate content sources to maintain.
+
+```tsx
+// app/sitemap.ts
+import type { MetadataRoute } from 'next'
+import { getAllPosts } from '@/lib/posts'
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const posts = getAllPosts()
+
+  return [
+    { url: 'https://example.com', changeFrequency: 'daily', priority: 1 },
+    { url: 'https://example.com/blog', changeFrequency: 'daily', priority: 0.9 },
+    ...posts.map((post) => ({
+      url: `https://example.com/blog/${post.slug}`,
+      lastModified: post.updated,
+      changeFrequency: 'weekly' as const,
+      priority: 0.7,
+    })),
+  ]
+}
+```
+
+An RSS feed is easy to skip, but it's still genuinely useful — for readers who use feed readers, and as another discovery path for search engines and content aggregators. A simple route handler can build the XML directly:
+
+```ts
+// app/feed.xml/route.ts
+import { getAllPosts } from '@/lib/posts'
+
+export async function GET() {
+  const posts = getAllPosts()
+
+  const items = posts
+    .map(
+      (post) => `
+    <item>
+      <title>${post.title}</title>
+      <link>https://example.com/blog/${post.slug}</link>
+      <guid>https://example.com/blog/${post.slug}</guid>
+      <pubDate>${new Date(post.date).toUTCString()}</pubDate>
+      <description>${post.description}</description>
+    </item>`
+    )
+    .join('')
+
+  const rss = `<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0"><channel>
+  <title>Example Co Blog</title>
+  <link>https://example.com/blog</link>
+  <description>Latest posts</description>
+  ${items}
+</channel></rss>`
+
+  return new Response(rss, {
+    headers: { 'Content-Type': 'application/xml' },
+  })
+}
+```
+
+## Static generation and why it matters more here than usual
+
+Because every post lives as a local file, static generation is essentially free — there's no database call to wait on, no API rate limit to worry about, just a file read at build time. `generateStaticParams` builds every published post into HTML during the build, so at request time a reader (or a crawler) gets a fully rendered page immediately, with zero JavaScript required to see the content.
+
+This matters more for an MDX blog than it might for a database-backed one, because the whole appeal of the files-as-content approach is simplicity, and dynamic rendering would throw that simplicity away for no real benefit — you'd be adding runtime cost to serve content that's known in full at build time. If your posts are frequent enough that a full rebuild on every publish feels heavy, Incremental Static Regeneration is still an option, but for most MDX blogs a full static build on deploy is genuinely the simpler and better answer, since publishing a post already usually means a git commit and a deploy anyway.
+
+## Reading experience: what actually keeps someone on the page
+
+None of the metadata or structured data work matters if the page itself is unpleasant to read, and reading experience quietly feeds into SEO through engagement signals and Core Web Vitals. A few things are worth getting right specifically for an MDX blog.
+
+Code blocks should be syntax highlighted server-side rather than shipping a client-side highlighting library that has to parse and style code after the page loads — `rehype-pretty-code` or `shiki` can do this at build time, so the highlighted code is part of the static HTML from the start.
+
+Images inside post content should go through `next/image`, not a raw `<img>` tag, even inside MDX. This is one of the easier things to miss, since it's tempting to just write `![alt text](/image.png)` in Markdown and move on. A custom MDX component that maps the Markdown image syntax to `next/image` under the hood keeps the lazy-loading and responsive sizing benefits without changing how anyone writes content.
+
+Heading structure should stay consistent — one `h1` per page for the title, and headings inside the body starting at `h2` and nesting logically from there. This helps both accessibility tools and search engines understand the outline of a page, and it's an easy thing to get wrong when Markdown makes it just as easy to write `#`, `##`, or `###` without thinking about the actual hierarchy.
+
+## Bringing it together
+
+The pattern that makes this all work is having one real source of truth — the collection of MDX files and their frontmatter — and building everything else as a thin layer on top of it: metadata generated from frontmatter, JSON-LD generated from the same fields, a sitemap and RSS feed built from the same post list, and static pages generated at build time so none of this depends on a database or a runtime API call. It's a small amount of code, entirely within your own repo, with no external service to configure or pay for. For a lot of blogs, that's not a compromise compared to a headless CMS — it's the actual best option, and Next.js's static generation and Metadata API are what make it fully SEO-competitive with a much heavier setup.
