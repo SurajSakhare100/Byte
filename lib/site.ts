@@ -30,7 +30,7 @@ export const site = {
     twitter: '@byte',
   },
   images: {
-    og: '/og-image.png',
+    og: '/byte.png',
     icon: '/icon.png',
     apple: '/apple-icon.png',
   },

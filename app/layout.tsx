@@ -7,9 +7,12 @@ import { StructuredData } from '@/components/structured-data';
 import { ThemeScript } from '@/components/theme-script';
 import { adsense } from '@/lib/adsense';
 import { defaultMetadata } from '@/lib/seo';
+import { isValidGaMeasurementId } from '@/lib/sanitize';
 
 export const metadata: Metadata = defaultMetadata;
-const GA_ID = process.env.NEXT_PUBLIC_GA_ID;
+
+const rawGaId = process.env.NEXT_PUBLIC_GA_ID?.trim();
+const GA_ID = rawGaId && isValidGaMeasurementId(rawGaId) ? rawGaId : undefined;
 
 export default function RootLayout({
   children,
