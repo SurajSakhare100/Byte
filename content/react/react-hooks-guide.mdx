@@ -1,0 +1,42 @@
+---
+title: A practical guide to React Hooks
+description: Learn how to choose, compose, and reason about React Hooks without turning components into a maze.
+slug: react-hooks-guide
+date: 2025-01-15
+updated: 2025-02-03
+author: Maya Chen
+category: React
+tags: [React, Hooks, JavaScript]
+coverImage: /assets/articles/react/react-hooks-guide-cover.webp
+readingTime: 7 min read
+featured: true
+draft: false
+---
+
+React Hooks are functions that let components remember information and interact with the outside world. They make a component's behavior easier to package and reuse.
+
+## Start with state
+
+Use `useState` for information that changes over time and should cause the UI to update. Keep each state variable focused on a single concern.
+
+```tsx
+const [isOpen, setIsOpen] = useState(false);
+```
+
+## Effects synchronize with the world
+
+`useEffect` is for synchronizing with something outside React: a browser API, a subscription, or a network connection. It is not a replacement for ordinary calculations during rendering.
+
+<Callout>Before adding an effect, ask whether the value can be calculated from props or state instead.</Callout>
+
+## Extract custom Hooks
+
+When two components share behavior, move the behavior into a custom Hook. A Hook should express intent, not just hide lines of code.
+
+```tsx
+function useDocumentTitle(title: string) {
+  useEffect(() => {
+    document.title = title;
+  }, [title]);
+}
+```

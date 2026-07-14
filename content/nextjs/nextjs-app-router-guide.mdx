@@ -1,0 +1,24 @@
+---
+title: "Next.js App Router: Everything You Need to Know"
+description: Understand layouts, pages, server components, and routing in the modern Next.js App Router.
+slug: nextjs-app-router-everything
+date: 2026-01-06
+updated: 2026-01-06
+author: byte team
+category: Next.js
+tags: [Next.js, App Router, React]
+coverImage: /assets/articles/nextjs/nextjs-app-router-cover.webp
+readingTime: 10 min read
+featured: false
+draft: false
+---
+
+The App Router maps folders in `app/` to routes. Files such as `page.tsx`, `layout.tsx`, and `loading.tsx` describe what each route renders.
+
+## Start with server components
+
+Components are server components by default. They can read local files and fetch data without adding that code to the browser bundle.
+
+## Add client code deliberately
+
+Use the `'use client'` directive only for browser interactions such as state, event handlers, and effects.

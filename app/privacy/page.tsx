@@ -1,0 +1,1 @@
+export default function Privacy(){return <section className="container-page max-w-3xl py-16 prose-blog"><h1>Privacy policy</h1><p>byte does not require accounts or collect personal information through this website. If analytics or advertising providers are added, this policy should be updated with their data practices and consent information.</p></section>}

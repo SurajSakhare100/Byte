@@ -1,0 +1,1 @@
+export function AdSlot({ label = 'Advertisement' }: { label?: string }) { return <aside aria-label={label} className="my-8 grid min-h-24 place-items-center rounded-xl border border-dashed bg-zinc-50 text-[10px] font-bold uppercase tracking-[.18em] text-zinc-400 dark:bg-zinc-950">{label}</aside>; }

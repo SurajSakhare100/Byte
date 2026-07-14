@@ -1,0 +1,24 @@
+---
+title: How to Deploy a Next.js App on Vercel
+description: Deploy a Next.js application to Vercel with a dependable production workflow.
+slug: deploy-nextjs-on-vercel
+date: 2026-01-16
+updated: 2026-01-16
+author: byte team
+category: Next.js
+tags: [Next.js, Vercel, Deployment]
+coverImage: /assets/articles/nextjs/deploy-vercel-cover.webp
+readingTime: 5 min read
+featured: false
+draft: false
+---
+
+Vercel understands Next.js conventions and can build a preview for every pull request.
+
+## Verify the production build locally
+
+Run `npm run build` before deploying. It catches route and type errors in the same build step used by the host.
+
+## Add environment variables safely
+
+Set secrets in the Vercel project settings and never commit them to the repository.

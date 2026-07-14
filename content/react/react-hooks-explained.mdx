@@ -1,0 +1,24 @@
+---
+title: "React Hooks Explained: A Complete Beginner's Guide"
+description: Learn React Hooks from first principles with practical patterns you can use today.
+slug: react-hooks-explained
+date: 2026-01-05
+updated: 2026-01-05
+author: byte team
+category: React
+tags: [React, Hooks, Beginner]
+coverImage: /assets/articles/react/react-hooks-explained-cover.webp
+readingTime: 8 min read
+featured: false
+draft: false
+---
+
+Hooks let function components remember values and synchronize with the browser. Start with `useState` for information that changes on screen.
+
+## Use state for changing UI
+
+Keep state small and specific. A boolean for an open menu is clearer than one large object for every UI concern.
+
+## Use effects for external systems
+
+Use `useEffect` to connect to subscriptions, timers, or browser APIs. Values calculated from props and state usually do not need an effect.

@@ -1,0 +1,31 @@
+---
+title: Async/await without the mystery
+description: Understand promises and asynchronous JavaScript with a mental model you can apply immediately.
+slug: async-await-without-mystery
+date: 2025-03-01
+updated: 2025-03-03
+author: Priya Shah
+category: JavaScript
+tags: [JavaScript, Async, Web APIs]
+coverImage: /assets/articles/javascript/async-await-cover.webp
+readingTime: 5 min read
+featured: false
+draft: false
+---
+
+`async` and `await` make promise-based code read from top to bottom. They do not make work synchronous—they give you a cleaner way to wait for a result.
+
+## Await a promise
+
+An `await` expression pauses the current async function until its promise settles. Other JavaScript can still run while it waits.
+
+```js
+async function loadProfile() {
+  const response = await fetch('/api/profile');
+  return response.json();
+}
+```
+
+## Handle failure deliberately
+
+Use `try` and `catch` around work that can fail. Give people a useful next action rather than only logging an error.

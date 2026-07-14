@@ -1,0 +1,1 @@
+export default function Terms(){return <section className="container-page max-w-3xl py-16 prose-blog"><h1>Terms &amp; conditions</h1><p>The content on byte is provided for educational purposes. Use code examples at your own discretion and review them before using them in production.</p></section>}

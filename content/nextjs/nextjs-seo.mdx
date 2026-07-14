@@ -1,0 +1,28 @@
+---
+title: SEO that fits naturally into a Next.js app
+description: A field guide to metadata, structured data, and static pages in the App Router.
+slug: nextjs-seo
+date: 2025-02-18
+updated: 2025-02-18
+author: Jordan Lee
+category: Next.js
+tags: [Next.js, SEO, Performance]
+coverImage: /assets/articles/nextjs/nextjs-seo-cover.webp
+readingTime: 6 min read
+featured: true
+draft: false
+---
+
+Great search optimization begins with useful pages. Next.js gives static sites a strong base because content can become HTML at build time.
+
+## Make metadata specific
+
+Use the Metadata API for a meaningful title, a concise description, and a canonical URL on every page. Article pages should also set Open Graph article fields.
+
+## Add structured data
+
+JSON-LD helps search engines understand whether a page is an article, an organization, or a breadcrumb trail. Keep it aligned with visible page content.
+
+## Keep the page fast
+
+Avoid shipping interactive JavaScript to a reader when plain HTML will do. Use client components only for interactions such as theme switching or filtering.
