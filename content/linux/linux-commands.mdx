@@ -8,17 +8,494 @@ author: byte team
 category: Linux
 tags: [Linux, Terminal, Developer Tools]
 coverImage: /assets/articles/linux/linux-cover.webp
-readingTime: 10 min read
+readingTime: 18 min read
 featured: false
 draft: false
 ---
 
 The shell is a fast interface for inspecting and changing a system. Learn a few commands deeply before memorizing a long list.
 
+That's really the whole philosophy behind this guide. You don't need to memorize fifty commands with every flag they support. You need to understand what each one is *for*, run it enough times that your fingers remember it, and know where to look when you need the one flag you use twice a year. Below are fifty commands that come up constantly if you write code, manage servers, or just live in a terminal for a few hours a day. I've grouped them by what they do rather than alphabetically, because that's how you actually end up learning them — you don't wake up wanting to use `chmod`, you wake up needing to fix a permission error, and `chmod` is the answer.
+
+A quick note before we start: almost everything here works the same on Linux and macOS (both are Unix-like), though a few flags differ between GNU tools (Linux) and BSD tools (macOS). I'll flag the cases where that matters.
+
 ## Navigate and inspect
 
-Use `pwd`, `ls`, `cd`, `find`, and `rg` to understand where files live and what they contain.
+This is the stuff you'll type without thinking about it within a week of using a terminal regularly.
 
-## Respect destructive commands
+### `pwd`
 
-Read the command before pressing enter. Prefer previews and version control when changing or deleting files.
+Prints your current directory. Sounds trivial until you're four levels deep in a build script's output and genuinely don't know where you are anymore.
+
+```bash
+pwd
+# /home/dev/projects/api-server
+```
+
+### `ls`
+
+Lists what's in a directory. On its own it's fine, but the flags are where the value is. `-l` gives you a long listing with permissions, owner, size, and modified date. `-a` shows hidden files (anything starting with a dot). `-h` makes file sizes human-readable instead of raw byte counts.
+
+```bash
+ls -lah
+```
+
+I run `ls -lah` so often it's basically muscle memory at this point. If you set up one alias in your whole shell config, make it this one.
+
+### `cd`
+
+Changes your directory. The two shortcuts worth knowing: `cd -` takes you back to wherever you were before your last `cd`, and `cd ~` (or just `cd` with no arguments) takes you home. `cd ..` moves up one level, and `cd ../..` moves up two.
+
+```bash
+cd ~/projects/api-server
+cd -   # jumps back to the previous directory
+```
+
+### `find`
+
+Searches for files based on name, type, size, age, and a handful of other criteria. It's more powerful than most people ever use it for.
+
+```bash
+find . -name "*.log"
+find . -type f -mtime -1   # files modified in the last day
+find . -size +100M         # files larger than 100MB
+```
+
+The syntax is a little unusual compared to other commands, but once it clicks, it's hard to go back to clicking through a file manager to hunt for something.
+
+### `tree`
+
+Not installed by default everywhere, but worth grabbing (`apt install tree` or `brew install tree`). It draws your directory structure as an actual tree instead of a flat list, which is genuinely useful when you're trying to understand a new codebase.
+
+```bash
+tree -L 2
+```
+
+The `-L 2` limits the depth to two levels, which keeps big projects from producing a wall of text.
+
+### `grep`
+
+Searches text for patterns. It's one of those tools people use for years without realizing how deep it goes. The basics: `-r` searches recursively through directories, `-i` ignores case, `-n` shows line numbers, and `-v` inverts the match (show lines that *don't* match).
+
+```bash
+grep -rn "TODO" src/
+grep -i "error" app.log
+```
+
+### `rg`
+
+Short for ripgrep. It's a faster, friendlier alternative to `grep` that respects your `.gitignore` by default, which means it won't waste time searching through `node_modules` or build folders unless you tell it to.
+
+```bash
+rg "function fetchUser"
+```
+
+If you work in a large repo, switching from `grep -r` to `rg` is one of those small quality-of-life changes that pays off every single day.
+
+## Look inside files
+
+### `cat`
+
+Prints a file's entire contents to the terminal. Great for small files, less great for anything longer than a screen.
+
+```bash
+cat package.json
+```
+
+A neat trick: `cat file1 file2 > combined.txt` concatenates two files into a new one, which is where the name comes from.
+
+### `less`
+
+For anything bigger than `cat` comfortably handles. It loads the file a screen at a time, lets you search with `/`, and doesn't choke on huge files the way opening them in an editor might.
+
+```bash
+less server.log
+```
+
+Press `q` to quit, `/searchterm` to search, and `n` to jump to the next match. That's really 90% of what you need.
+
+### `head`
+
+Shows the first lines of a file — ten by default.
+
+```bash
+head -n 20 access.log
+```
+
+### `tail`
+
+Shows the last lines of a file. The flag you'll use constantly is `-f`, which follows the file as new lines get appended — perfect for watching a log in real time while your app runs.
+
+```bash
+tail -f /var/log/nginx/error.log
+```
+
+I don't think I've debugged a production issue in the last five years without a `tail -f` running in some terminal tab.
+
+## Create, move, and remove files
+
+### `touch`
+
+Creates an empty file, or updates the modified timestamp on an existing one.
+
+```bash
+touch notes.md
+```
+
+### `mkdir`
+
+Makes a directory. Add `-p` to create parent directories that don't exist yet, which saves you from doing it one folder at a time.
+
+```bash
+mkdir -p src/components/ui
+```
+
+### `cp`
+
+Copies files or directories. Use `-r` for directories, since a plain `cp` will refuse and tell you it's a directory.
+
+```bash
+cp config.example.json config.json
+cp -r assets/ backup/assets/
+```
+
+### `mv`
+
+Moves or renames a file — Linux doesn't really distinguish between the two, which surprises people the first time they use it to rename something.
+
+```bash
+mv old-name.txt new-name.txt
+mv report.pdf ~/Documents/
+```
+
+### `rm`
+
+Deletes files. There's no trash can here — it's gone. Use `-r` for directories and `-i` if you want a confirmation prompt for every file, which is a good habit when you're not entirely sure what a wildcard is going to match.
+
+```bash
+rm old-file.txt
+rm -r build/
+```
+
+Read the command before pressing enter. Prefer previews and version control when changing or deleting files. A `find . -name "*.tmp"` before the matching `rm` is a good habit, so you can actually see what's about to disappear.
+
+### `ln`
+
+Creates links. A hard link (`ln`) points to the same data on disk, while a symbolic link (`ln -s`) is closer to a shortcut that points to another path. Symlinks are the ones you'll use most, often for pointing a config file at a version-controlled copy.
+
+```bash
+ln -s ~/dotfiles/.zshrc ~/.zshrc
+```
+
+## Permissions and ownership
+
+Linux permissions confuse almost everyone at first, and then one day they just click.
+
+### `chmod`
+
+Changes what a file's owner, group, and everyone else are allowed to do with it — read, write, or execute. You'll see it written either in symbolic form (`u+x`) or numeric form (`755`), where each digit represents read (4), write (2), and execute (1) added together.
+
+```bash
+chmod +x deploy.sh
+chmod 644 config.json
+```
+
+`755` on a script means the owner can read, write, and execute, while everyone else can only read and execute. `644` on a file means the owner can read and write, everyone else can only read.
+
+### `chown`
+
+Changes who owns a file — both the user and, optionally, the group.
+
+```bash
+sudo chown dev:dev /var/www/app
+```
+
+You'll reach for this most often after copying files as root and discovering your normal user can't touch them anymore.
+
+### `sudo`
+
+Runs a single command with elevated (root) privileges. It's not a mode you switch into — it applies to just the one command that follows it.
+
+```bash
+sudo apt update
+```
+
+Worth knowing: `sudo !!` reruns your last command with `sudo` in front of it, which is handy when you forget it and get a permission denied error.
+
+## Managing processes
+
+### `ps`
+
+Lists running processes. On its own it's not very useful, so it's almost always paired with flags — `ps aux` is the combination people actually type, showing every process on the system with useful columns like CPU and memory usage.
+
+```bash
+ps aux | grep node
+```
+
+### `top`
+
+An interactive, live-updating view of what's using your CPU and memory. Press `q` to quit, and if you're not sure what's making your laptop fan spin up, this is where you find out.
+
+```bash
+top
+```
+
+### `htop`
+
+Basically `top`, but nicer to look at and easier to use — color-coded, scrollable, and you can kill a process by selecting it instead of typing its PID. Not installed by default, but worth adding.
+
+```bash
+htop
+```
+
+### `kill`
+
+Sends a signal to a process, usually to stop it. The default signal (`SIGTERM`) asks the process to shut down gracefully; `-9` (`SIGKILL`) forces it to stop immediately, no cleanup.
+
+```bash
+kill 4821
+kill -9 4821
+```
+
+Reach for `-9` only after a plain `kill` hasn't worked — a graceful shutdown is almost always better for the process and anything it was holding open.
+
+### `killall`
+
+Same idea as `kill`, but by process name instead of PID, which is easier when you don't want to look up the number first.
+
+```bash
+killall node
+```
+
+### `jobs`, `bg`, and `fg`
+
+A small trio for managing processes you've backgrounded in your current shell. `Ctrl+Z` suspends a running process, `bg` resumes it in the background, `fg` brings it back to the foreground, and `jobs` lists everything currently running or suspended in that shell session.
+
+```bash
+jobs
+fg %1
+```
+
+### `nohup`
+
+Runs a command so it keeps going even after you close the terminal that started it — useful for long jobs on a remote server where you don't want to keep an SSH session open the whole time.
+
+```bash
+nohup ./long-running-script.sh &
+```
+
+## Disk, memory, and system info
+
+### `df`
+
+Shows disk space usage across your mounted filesystems. Add `-h` for human-readable sizes instead of raw block counts.
+
+```bash
+df -h
+```
+
+This is usually the first thing I check when a server starts behaving strangely — "disk full" causes more weird, hard-to-diagnose bugs than you'd expect.
+
+### `du`
+
+Shows how much space a specific directory or file is using, which is more granular than `df`. Combine `-s` (summary) and `-h` (human-readable) to get a quick total for a folder.
+
+```bash
+du -sh node_modules/
+```
+
+### `free`
+
+Shows memory usage — total, used, free, and how much is being used for cache and buffers.
+
+```bash
+free -h
+```
+
+### `uname`
+
+Prints system information. `uname -a` gives you the kernel name, version, and architecture in one line, which is useful when you're trying to figure out exactly what environment you're running in.
+
+```bash
+uname -a
+```
+
+### `whoami`
+
+Prints the current user. Simple, but genuinely handy when you're bouncing between SSH sessions on different servers and lose track of which user you're logged in as.
+
+```bash
+whoami
+```
+
+### `uptime`
+
+Shows how long the system has been running, along with the load average — a rough measure of how busy the CPU has been over the last one, five, and fifteen minutes.
+
+```bash
+uptime
+```
+
+## Shell and environment
+
+### `history`
+
+Lists the commands you've run recently. Pipe it through `grep` to find that one command you ran three days ago and can't quite remember.
+
+```bash
+history | grep docker
+```
+
+Also worth knowing: `Ctrl+R` in most shells opens a reverse search through your history, which is usually faster than scrolling through `history` output.
+
+### `alias`
+
+Creates a shortcut for a longer command. Most people's shell config accumulates a handful of these over time without really planning it.
+
+```bash
+alias gs="git status"
+alias ll="ls -lah"
+```
+
+Add these to your `.bashrc` or `.zshrc` and they'll be available in every new terminal session.
+
+### `echo`
+
+Prints text. Looks almost too simple to mention, but it's everywhere in scripts — for debugging output, for building strings, for writing to files with `>` or `>>`.
+
+```bash
+echo "Build complete" 
+echo "PORT=3000" >> .env
+```
+
+### `export`
+
+Sets an environment variable so it's available to any process started from that shell, not just the shell itself.
+
+```bash
+export NODE_ENV=production
+```
+
+Without `export`, a variable stays local to your current shell and won't be passed down to programs you run from it.
+
+### `env`
+
+Lists all currently set environment variables, or runs a command with a modified environment.
+
+```bash
+env | grep NODE
+```
+
+### `man`
+
+Opens the manual page for a command — the built-in documentation. When you can't remember a flag, this is usually faster than searching the web, and it's always accurate for the exact version installed on your machine.
+
+```bash
+man grep
+```
+
+Press `q` to exit, `/searchterm` to search within the page.
+
+## Networking
+
+### `curl`
+
+Makes HTTP requests from the command line. Essential for testing APIs, downloading files, or checking whether a service is even responding.
+
+```bash
+curl https://api.example.com/health
+curl -X POST -H "Content-Type: application/json" -d '{"name":"test"}' https://api.example.com/users
+```
+
+### `wget`
+
+Similar territory to `curl`, but built specifically around downloading files, including recursively pulling down an entire directory of files from a server.
+
+```bash
+wget https://example.com/dataset.zip
+```
+
+If you just need to grab a single file, `wget` tends to be slightly more convenient than `curl -O`.
+
+### `ssh`
+
+Connects to a remote machine over an encrypted connection. This is how you actually get onto a server to run commands on it.
+
+```bash
+ssh dev@203.0.113.10
+```
+
+Set up an SSH key pair instead of typing a password every time — it's both faster and more secure.
+
+### `scp`
+
+Copies files between machines over SSH. The syntax mirrors regular `cp`, just with a host prefix.
+
+```bash
+scp report.pdf dev@203.0.113.10:/home/dev/reports/
+```
+
+### `rsync`
+
+Also copies files, but smarter — it only transfers the parts of a file that changed, which makes it much faster than `scp` for repeated syncs of large directories.
+
+```bash
+rsync -avz ./dist/ dev@203.0.113.10:/var/www/app/
+```
+
+`-a` preserves permissions and timestamps, `-v` gives you verbose output, and `-z` compresses data during transfer.
+
+### `ping`
+
+Sends small packets to a host to check whether it's reachable and how long the round trip takes. Usually the first thing to try when something "isn't working" — is it even reachable at all?
+
+```bash
+ping google.com
+```
+
+### `ss`
+
+Shows network connections and listening ports — the modern replacement for the older `netstat`. Useful for checking whether something is actually listening on the port you think it is.
+
+```bash
+ss -tulwn
+```
+
+`-t` and `-u` show TCP and UDP sockets, `-l` limits to listening sockets, `-w` shows raw process info, and `-n` skips DNS resolution so it returns faster.
+
+## Archives and text processing
+
+### `tar`
+
+Bundles files into a single archive, optionally compressed. The flags look cryptic at first but settle into muscle memory fast: `-c` creates, `-x` extracts, `-v` is verbose, `-z` uses gzip compression, `-f` specifies the filename.
+
+```bash
+tar -czvf backup.tar.gz ./project
+tar -xzvf backup.tar.gz
+```
+
+There's an old joke that nobody actually remembers what the flags stand for, they just remember `czvf` and `xzvf` as two words. That's not far from the truth.
+
+### `sed`
+
+A stream editor for transforming text, most commonly used for find-and-replace directly in files or piped output.
+
+```bash
+sed -i 's/localhost/127.0.0.1/g' config.yaml
+```
+
+`-i` edits the file in place, `s/old/new/g` is the substitution pattern, and `g` means replace every match on each line, not just the first. It's worth making a backup or checking your version control before running `-i` edits — there's no undo.
+
+## Putting it together
+
+None of these commands are impressive on their own. The value shows up when you start chaining them — piping the output of one into the input of another, which is really the core idea behind the whole Unix philosophy: small tools that each do one thing, combined to do something more complex.
+
+```bash
+ps aux | grep node | grep -v grep
+find . -name "*.log" -mtime +7 -delete
+du -sh */ | sort -rh | head -10
+```
+
+That last one lists the ten largest directories in your current folder, sorted biggest to smallest — three commands you already know, joined with pipes, doing something none of them could do alone.
+
+You won't remember every flag from this list after one read, and that's fine. Keep a terminal open, keep `man` one keystroke away, and let the ones you actually use settle in naturally. The rest will stick the day you actually need them.

@@ -13,12 +13,58 @@ featured: false
 draft: false
 ---
 
-Both frameworks let teams build mobile applications for more than one platform from a shared codebase.
+Both frameworks let teams build mobile applications for more than one platform from a shared codebase. That part of the pitch hasn't changed in years. What has changed, quietly but significantly, is how each one actually performs and feels to build with — and a lot of the old comparisons floating around are describing frameworks that don't really exist anymore.
 
-## Choose for your team
+## What's actually different going into 2026
 
-React Native is a natural fit for JavaScript and React teams. Flutter is compelling when a team prefers Dart and highly controlled rendering.
+If you last looked at React Native two or three years ago and remember complaints about the "bridge" being slow, that criticism is mostly out of date now. React Native rebuilt its core communication layer — JSI replaces the old asynchronous, JSON-serialized bridge with direct, synchronous calls between JavaScript and native code, and as of React Native 0.82 the legacy bridge architecture has been <cite index="8-1">permanently disabled, with the New Architecture — JSI, TurboModules, Fabric, and Codegen — now the only supported path.</cite> Paired with Fabric as the renderer, this also unlocked proper support for React 18's concurrent features, since the old bridge couldn't interrupt and resume rendering the way transitions and Suspense need.
 
-## Evaluate the product
+Flutter had less architectural baggage to shed, but it's had its own major year. <cite index="16-1">Flutter 3.44 and Dart 3.12, announced at Google I/O 2026, mark a real shift in how apps are built, how they render, and how the framework itself is structured</cite> — most notably the completed rollout of the Impeller rendering engine on Android, alongside experimental agentic tooling that lets an AI coding agent trigger hot reload and inspect runtime diagnostics directly through a Dart MCP server.
 
-Prototype a critical screen, test device APIs, and consider the existing skills of the people who will maintain the app.
+So the honest starting point for 2026 is: both frameworks are meaningfully faster and more mature than whatever mental snapshot you're carrying around from a few years ago. The decision comes down less to "which one is fast enough" and more to language fit, rendering philosophy, and what your team already knows.
+
+## Language and learning curve
+
+React Native's biggest advantage hasn't moved: it's JavaScript and TypeScript, sitting on top of React. If your team already ships a React web app, the component model, hooks, and a good chunk of your logic can transfer directly, and hiring is easier because the JavaScript talent pool is enormous. TypeScript support has gotten noticeably better across the ecosystem too, which matters if your team leans on strict typing to catch bugs before they hit a device.
+
+Flutter uses Dart, which is a smaller, more contained language you can pick up in a weekend if you already know a C-family or OOP language — but it's still a second language your team has to learn and hire for, separate from whatever you're using on the web or backend. Dart 3.12 pushed the language to be more concise, adding private named parameters and experimental primary constructors so you write less boilerplate around your model classes. It's a genuinely pleasant language to work in, but "pleasant" doesn't erase the fact that it's an additional skill outside the JavaScript world most product teams already live in.
+
+## Performance and architecture
+
+This is where the gap has narrowed the most. On React Native, JSI lets JavaScript hold a direct reference to native C++ objects and call them synchronously, cutting out the serialization step that used to cause jank on scroll and gesture-heavy screens. Real production migrations reported meaningfully <cite index="8-1">faster cold starts, faster rendering, and lower memory usage after moving to the New Architecture</cite>, and JavaScript-to-native calls specifically got dramatically faster since they no longer round-trip through JSON.
+
+Flutter's performance story has always started from a different premise: it doesn't talk to native UI widgets at all. It compiles to native ARM/x64 code and draws every pixel itself through its own rendering engine, which is why Flutter apps have historically felt more visually consistent across iOS and Android — you're looking at the same renderer either way. The completed move to Impeller on Android removes the last major gap in that story, since Impeller replaced the older Skia-based rasterizer specifically to eliminate shader-compilation jank that used to cause visible stutters on first run.
+
+Practically speaking, both frameworks are now fast enough that performance shouldn't be your deciding factor for the vast majority of apps. Where you'll still notice a difference is in complex, custom animations and heavy native integrations — Flutter's single-renderer approach tends to make custom UI more predictable, while React Native's new architecture has closed most of the gap for everyday interactions.
+
+## UI and rendering philosophy
+
+This is the part that doesn't change with version numbers, because it's a fundamental design choice, not a performance bug to fix.
+
+React Native maps your components to real native UI elements — a `<Text>` becomes an actual `UILabel` on iOS or `TextView` on Android. That means your app inherits platform look-and-feel more or less for free, and accessibility tools generally understand it out of the box, since they're talking to native components underneath.
+
+Flutter draws everything itself, widget by widget, with its own rendering pipeline rather than the platform's native components. You get pixel-identical UI on both platforms, which is great for teams with a strong custom design system and less great if you actually want the app to feel distinctly "iOS" or "Android" without extra work faking platform conventions.
+
+Neither approach is objectively better — it depends on whether you want your app to feel native to each platform or feel identical everywhere.
+
+## Ecosystem and tooling
+
+React Native's ecosystem is enormous by sheer volume, because it inherits the entire JavaScript and npm world alongside its own native modules. The rough state of package compatibility with the New Architecture is <cite index="6-1">around 85% of popular React Native packages on npm, with the remaining share still bridge-only or partially supported</cite> — worth checking before you commit to a library-heavy stack. Expo has also become the default starting point for most new projects rather than an alternative to "bare" React Native, since it now ships the New Architecture by default and gives you native module access through development builds without ejecting.
+
+Flutter's package ecosystem on pub.dev is smaller in absolute package count but tends to be more consistently maintained, since Google curates and heavily documents the core widget and plugin sets itself rather than leaving as much to the community. Adoption numbers back up how much that ecosystem has grown — pub.dev crossed <cite index="16-1">over 1.3 billion package downloads in a single 30-day window</cite> earlier this year, and Flutter has climbed to become the second most popular mobile development SDK across both major app stores.
+
+On the tooling side, both frameworks are leaning hard into AI-assisted development this year — React Native/Expo teams increasingly use AI coding agents alongside standard dev tooling, while Flutter shipped an MCP server integration and an experimental "Agentic Hot Reload" feature that lets a coding agent modify code and trigger hot reload without manually managing a debugging connection.
+
+## Team fit and hiring
+
+This is honestly the deciding factor for most real teams, more than any benchmark.
+
+Choose React Native if your engineers already know React, you want to share code or at least concepts between your web and mobile apps, or you're hiring in a market where JavaScript talent is far easier to find than Dart specialists. It's also the more forgiving choice if you expect a lot of turnover on the mobile team, since onboarding someone who already knows React is faster than onboarding someone who's never touched Dart.
+
+Choose Flutter if visual consistency across platforms matters more to your product than feeling native to each OS, if you're starting from scratch with a small dedicated mobile team that can specialize in Dart, or if you've been burned before by JavaScript ecosystem churn and want a more self-contained toolchain maintained by one vendor.
+
+## How to actually decide
+
+Don't try to settle this with a spec sheet. Prototype a single, representative screen in both — ideally something with a list, an animation, and one native device API like the camera or location — and see how each one actually feels to build and how it performs on a mid-range device, not just your development phone. Test the device APIs your product genuinely depends on, since plugin quality varies more than headline performance numbers suggest. And weigh the skills already sitting on your team; a framework that's theoretically better on paper is worth less than one your engineers can be productive in by next week.
+
+Both React Native and Flutter are strong, production-proven choices in 2026. The frameworks have converged more than they've diverged — the real decision is about your people and your product, not which one wins an abstract benchmark.

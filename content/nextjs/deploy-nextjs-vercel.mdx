@@ -8,17 +8,115 @@ author: byte team
 category: Next.js
 tags: [Next.js, Vercel, Deployment]
 coverImage: /assets/articles/nextjs/deploy-vercel-cover.webp
-readingTime: 5 min read
+readingTime: 9 min read
 featured: false
 draft: false
 ---
 
-Vercel understands Next.js conventions and can build a preview for every pull request.
+Vercel understands Next.js conventions and can build a preview for every pull request. That's the whole reason most Next.js projects end up there instead of some general-purpose host — it's built by the same team that builds the framework, so features like Incremental Static Regeneration, Server Components, and middleware just work without you writing a config file to explain them. This guide walks through getting a project onto Vercel the way you'd actually want to run it in production, not just the "click deploy and hope" version.
 
 ## Verify the production build locally
 
-Run `npm run build` before deploying. It catches route and type errors in the same build step used by the host.
+Before you push anything, run the same build Vercel is going to run.
+
+```bash
+npm run build
+```
+
+This catches route and type errors in the same build step used by the host, which matters because dev mode is forgiving in ways production isn't — a component that works fine with `next dev` can fail to compile once it's actually being built for production. If `next build` fails locally, it's going to fail on Vercel too, and you'll find out from a red X on a pull request instead of your own terminal.
+
+Once it builds, it's worth actually running the production build too, not just compiling it:
+
+```bash
+npm run build
+npm run start
+```
+
+This runs your app the way it'll behave in production — no hot reload, no dev-only warnings smoothing things over. If something's going to break under real conditions, this is where you catch it.
+
+## Connect your repository
+
+Vercel's primary workflow is Git-based, and that's the one worth using for anything beyond a quick test. Push your code to GitHub, GitLab, or Bitbucket, then import the repository from the Vercel dashboard. Vercel auto-detects that it's a Next.js project and sets sensible defaults for the build command, output directory, and install command — you generally don't need to touch these unless you're doing something nonstandard, like a monorepo with a nested app directory.
+
+Once connected, the deployment model is simple and worth understanding up front:
+
+- **Pushing to your default branch** (usually `main`) triggers a **production deployment**.
+- **Pushing to any other branch**, or opening a pull request, triggers a **preview deployment** — a full, real build running at its own unique URL, with your actual environment variables and API connections, not a mock.
+
+That preview URL is the single biggest workflow improvement Vercel gives you over a manual deploy process. You can hand a reviewer or a client a link instead of describing what changed, and they're looking at the real thing.
 
 ## Add environment variables safely
 
-Set secrets in the Vercel project settings and never commit them to the repository.
+Set secrets in the Vercel project settings and never commit them to the repository — this one is non-negotiable, and it's also one of the most common ways teams accidentally leak an API key. Go to your project's **Settings → Environment Variables** and add each one there instead of in a `.env` file that might get committed by accident.
+
+Vercel lets you scope a variable to Development, Preview, and Production independently, which is worth actually using rather than setting one value everywhere. A common real setup looks like this:
+
+```bash
+# Production
+DATABASE_URL=postgresql://prod-user:pass@prod-host/db
+STRIPE_SECRET_KEY=sk_live_xxx
+
+# Preview
+DATABASE_URL=postgresql://staging-user:pass@staging-host/db
+STRIPE_SECRET_KEY=sk_test_xxx
+```
+
+This keeps preview deployments from accidentally hitting production data or charging a real card while someone's testing a pull request.
+
+One distinction that trips people up: any variable prefixed with `NEXT_PUBLIC_` gets bundled into client-side JavaScript and is visible to anyone who opens dev tools. Only use that prefix for values that are genuinely safe to expose, like a public API base URL. Anything sensitive — database credentials, private API keys, webhook secrets — should stay unprefixed so it only ever runs server-side.
+
+## Deploy
+
+For most projects, deploying is just pushing to Git:
+
+```bash
+git push origin main
+```
+
+Vercel picks up the commit, runs the build, and promotes it to production automatically if the build succeeds. There's no SSH, no manual file transfer, and deployments are atomic — if a build fails, the previous working version stays live instead of your site going down mid-deploy.
+
+If you want to deploy directly from your machine without going through Git — useful for a quick one-off test — the Vercel CLI does that too:
+
+```bash
+npm install -g vercel
+vercel
+```
+
+Running `vercel` from your project root walks you through linking the project and creates a preview deployment. Add `--prod` when you specifically want it to go to production:
+
+```bash
+vercel --prod
+```
+
+For teams with their own CI pipeline that already builds the app, `vercel build` followed by `vercel deploy --prebuilt` lets you build once in your own CI environment and hand Vercel the finished output rather than having it rebuild from scratch:
+
+```bash
+vercel build
+vercel deploy --prebuilt
+```
+
+For day-to-day work, though, stick with the Git-based flow. It gives you a clean audit trail of exactly what was deployed and when, which the CLI-first approach doesn't give you for free.
+
+## Set up a custom domain
+
+Once you're happy with a production deployment, add your domain under **Settings → Domains**. Vercel handles HTTPS and certificate renewal automatically, so there's nothing extra to configure there. You'll either point your domain's nameservers at Vercel or add the specific A/CNAME records it gives you, depending on whether you want Vercel managing DNS entirely or just handling the app itself.
+
+## Monitor what's actually happening in production
+
+A deployment that succeeds isn't the same thing as an app that's healthy. Vercel's dashboard gives you build and runtime logs per deployment, which is the first place to look if something's erroring in production but worked fine locally.
+
+Beyond logs, it's worth installing Web Analytics and Speed Insights early rather than after something goes wrong:
+
+```bash
+npm install @vercel/analytics @vercel/speed-insights
+```
+
+These report real user performance data — actual load times experienced by real visitors on real devices and networks — rather than a synthetic benchmark run from a single test server. That distinction matters more than it sounds like it should; a page that's fast on your fiber connection in a data center's backyard can be meaningfully slower for someone on a phone with a weak signal three time zones away.
+
+## Rolling back a bad deploy
+
+Mistakes reach production eventually no matter how careful the process is. Because every deployment on Vercel is immutable and gets its own URL, rolling back doesn't mean scrambling to revert a commit and rebuild under pressure — you can just go to the **Deployments** tab, find the last known-good deployment, and promote it back to production in a couple of clicks. That's usually faster than `git revert`, and it buys you time to fix the actual problem without users sitting on a broken page in the meantime.
+
+## A workflow that holds up
+
+Put together, a dependable version of this looks like: run `npm run build` locally before you push anything, keep secrets in the Vercel dashboard scoped correctly per environment, let pull requests generate preview deployments instead of testing changes in production, and check Analytics and Speed Insights periodically rather than only when someone complains. None of this is complicated on its own — the value is in doing it consistently so a bad deploy is a minor inconvenience instead of an incident.
