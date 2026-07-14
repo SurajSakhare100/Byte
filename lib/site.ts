@@ -1,1 +1,37 @@
-export const site = { name: 'byte', url: 'https://byte.surajx.in', description: 'Tech articles to help you build better software.' };
+export const site = {
+  name: 'byte',
+  title: 'byte — Tech articles to help you build better software',
+  tagline: 'Discover, Learn, and Build with Byte',
+  url: 'https://byte.surajx.in',
+  description:
+    'A modern platform for tech articles covering programming, AI, web development, mobile development, cloud technologies, and open source.',
+  author: 'byte team',
+  email: 'hello@example.com',
+  locale: 'en_US',
+  keywords: [
+    'tech articles',
+    'programming tutorials',
+    'software development',
+    'web development',
+    'AI',
+    'machine learning',
+    'React',
+    'Next.js',
+    'JavaScript',
+    'TypeScript',
+    'mobile development',
+    'cloud computing',
+    'DevOps',
+    'open source',
+    'system design',
+    'developer blog',
+  ],
+  social: {
+    twitter: '@byte',
+  },
+  images: {
+    og: '/og-image.png',
+    icon: '/icon.png',
+    apple: '/apple-icon.png',
+  },
+} as const;

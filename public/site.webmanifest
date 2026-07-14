@@ -1,0 +1,24 @@
+{
+  "name": "byte",
+  "short_name": "byte",
+  "description": "Tech articles to help you build better software.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#000000",
+  "lang": "en-US",
+  "icons": [
+    {
+      "src": "/icon.png",
+      "sizes": "980x980",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/apple-icon.png",
+      "sizes": "980x980",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

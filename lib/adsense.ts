@@ -1,10 +1,11 @@
 export const adsense = {
-  client: process.env.NEXT_PUBLIC_ADSENSE_CLIENT!,
+  client: 'ca-pub-7623182087547549',
   slots: {
-    banner: process.env.NEXT_PUBLIC_ADSENSE_SLOT_BANNER!,
-    inArticle: process.env.NEXT_PUBLIC_ADSENSE_SLOT_IN_ARTICLE!,
+    banner: process.env.NEXT_PUBLIC_ADSENSE_SLOT_BANNER ?? '2468294937',
+    inArticle: process.env.NEXT_PUBLIC_ADSENSE_SLOT_IN_ARTICLE ?? '9945807192',
   },
 } as const;
+
 export type AdVariant = keyof typeof adsense.slots;
 
 export const adVariants = {

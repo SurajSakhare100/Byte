@@ -13,12 +13,144 @@ featured: false
 draft: false
 ---
 
-Git records the history of a project; GitHub hosts that history and makes collaboration easier.
+Git records the history of a project; GitHub hosts that history and makes collaboration easier. The two get mentioned together so often that beginners sometimes assume they're the same thing, but they're not — and understanding the difference makes everything else in this guide click into place.
+
+**Git** is a version control tool that runs on your own machine. It tracks every change you make to a project, lets you go back to any earlier point, and lets you work on different versions of the code at the same time without them interfering with each other. You could use Git your entire career without ever touching GitHub — it works perfectly well on a single laptop with no internet connection at all.
+
+**GitHub** is a website (one of several — GitLab and Bitbucket are others) that hosts Git repositories online and adds collaboration features on top: a place to see pull requests, discuss changes, track issues, and give a team a shared, central copy of the project's history.
+
+So Git is the tool that tracks changes. GitHub is where teams share and review those changes together. This guide covers both, in the order you'd actually use them.
+
+## Setting up
+
+If you haven't already, install Git and set your identity — this is the name and email that will show up on every commit you make:
+
+```bash
+git config --global user.name "Your Name"
+git config --global user.email "you@example.com"
+```
+
+To start tracking a new project, run `git init` inside its folder. To get a copy of an existing project that's already hosted somewhere, use `git clone <url>` instead — this downloads the full history, not just the current files.
+
+## The basic loop
+
+Nearly everything you do in Git day to day comes down to a small loop: change files, stage the changes you want to record, commit them with a message, and eventually push that history somewhere shared.
+
+```bash
+git status        # see what's changed
+git add file.js    # stage a specific file
+git add .          # stage everything that's changed
+git commit -m "Add input validation to signup form"
+```
+
+**Staging** is the part that trips people up at first. It's a middle step between "I changed a file" and "I've recorded that change in history." You can change five files but only stage and commit two of them, which is useful when your edits touch more than one unrelated thing and you don't want them all lumped into a single commit.
 
 ## Work in small commits
 
-Make each commit represent one understandable change. A clear message makes the project history useful to future you.
+Make each commit represent one understandable change. This is one of those habits that seems like a minor style preference until you're six months into a project and trying to figure out why a specific line of code exists, or trying to undo one specific change without undoing three unrelated ones bundled into the same commit.
+
+A commit that says "fix bug" and changes forty files across three unrelated features tells future-you nothing. A commit that says "fix off-by-one error in pagination when there are zero results" and touches exactly the lines needed to fix that is something you can actually understand at a glance a year later — or that a teammate can review in a few minutes instead of an hour.
+
+A useful rule of thumb: if you're struggling to write a one-line commit message because the change involves several unrelated things, that's often a sign the commit should be split into several smaller ones. `git add -p` lets you stage a file in chunks rather than all at once, which makes this splitting possible even after you've already made a batch of changes.
+
+A clear message makes the project history useful to future you. A good pattern for commit messages:
+
+```
+Add input validation to signup form
+
+Reject empty email and password fields on the client
+before the request reaches the server. Prevents
+unnecessary API calls for obviously invalid submissions.
+```
+
+The first line is a short summary, written so it makes sense on its own in a list of a hundred other commit summaries. The blank line and paragraph below it explain *why*, not just *what* — the diff already shows what changed; the message should carry the reasoning a diff can't.
+
+## Looking at history
+
+A few commands help you actually use the history you're building, rather than just accumulating it:
+
+- **`git log`** — shows the commit history; `git log --oneline` compresses each commit to a single line, which is often more useful for scanning.
+- **`git diff`** — shows unstaged changes; `git diff --staged` shows what's staged and about to be committed.
+- **`git blame <file>`** — shows which commit last touched each line of a file, useful for understanding why a specific line exists.
+- **`git show <commit>`** — shows exactly what a specific commit changed.
+
+These aren't just for emergencies. Getting into the habit of reading `git log --oneline` before starting work, or `git diff` before committing, catches a surprising number of mistakes — a leftover debug line, an unintended change to a file you weren't supposed to touch — before they become part of the permanent history.
 
 ## Use branches for changes
 
-Create a branch before a feature or fix. Open a pull request to review the work before merging it.
+Create a branch before starting a feature or fix, rather than working directly on the main branch. A branch is a separate line of history that starts from wherever you create it and diverges as you commit to it, without affecting the main line until you explicitly merge it back in.
+
+```bash
+git checkout -b add-password-reset
+```
+
+This creates a new branch called `add-password-reset` and switches to it in one step. Every commit you make now happens on this branch, leaving `main` untouched. If something goes wrong, you can abandon the branch entirely without any cleanup on the main line of history. If it goes well, you merge it back in once it's reviewed.
+
+Why bother, instead of just working directly on `main`? A few reasons that matter more as a project or team grows:
+
+- **Main stays stable.** Anyone pulling the main branch — a teammate, a deployment pipeline — gets code that's already been reviewed, not code midway through being written.
+- **Work can happen in parallel.** Multiple people, or multiple features from the same person, can be in progress at once without stepping on each other.
+- **Review happens before merging, not after.** A branch gives reviewers something concrete and contained to look at, instead of reviewing changes that are already live.
+
+A common naming convention is a short prefix describing the type of change, followed by a brief description: `feature/password-reset`, `fix/pagination-off-by-one`, `chore/update-dependencies`. This isn't required by Git itself, but it makes a repository with many contributors much easier to scan.
+
+## Push your branch and open a pull request
+
+Once your branch has commits you're happy with, push it to GitHub:
+
+```bash
+git push -u origin add-password-reset
+```
+
+The `-u` flag sets up tracking between your local branch and the one on GitHub, so future pushes from this branch can just be `git push` without repeating the branch name.
+
+From here, GitHub lets you open a **pull request** — a request to merge your branch into another one, usually `main`. This is where collaboration actually happens: a pull request shows the full diff of your changes, lets teammates leave comments on specific lines, and gives everyone a chance to catch problems before they land in the shared codebase.
+
+Open a pull request to review the work before merging it, even for a project you're working on entirely alone. It might seem unnecessary without a team to review it, but it still forces a moment of distance between writing code and merging it — reading your own diff on GitHub, away from the editor you wrote it in, surfaces mistakes you'd otherwise scroll right past.
+
+## Keeping branches up to date
+
+Branches can drift out of sync with `main` while you're working, especially on a project with more than one contributor. Two commands handle this, and they behave differently in a way that's worth understanding rather than picking randomly:
+
+**`git merge main`** (while on your feature branch) brings main's changes into your branch as a new merge commit, preserving both histories exactly as they happened, side by side.
+
+**`git rebase main`** replays your branch's commits on top of main's latest state, producing a cleaner, linear history — but it rewrites your branch's commit history in the process, which can cause problems if you've already pushed that branch and others are working from it.
+
+A reasonable default for beginners: use `merge` when working with others on a shared branch, and save `rebase` for cleaning up your own local, not-yet-shared work before opening a pull request.
+
+## Resolving conflicts
+
+A conflict happens when Git can't automatically combine two changes — usually because two branches edited the same lines of the same file in different ways. This isn't a sign that something has gone wrong; it's a normal part of collaborative work, and it happens to experienced developers just as often as beginners.
+
+When it happens, Git marks the conflicting section directly in the file:
+
+```
+<<<<<<< HEAD
+const maxRetries = 3;
+=======
+const maxRetries = 5;
+>>>>>>> add-password-reset
+```
+
+Everything between `<<<<<<< HEAD` and `=======` is what's currently on your branch; everything between `=======` and the branch name is what's coming in from the other branch. Resolving it means editing the file to keep whichever version is correct (or a combination of both), removing the conflict markers entirely, then staging and committing the result:
+
+```bash
+git add resolved-file.js
+git commit
+```
+
+The instinct to panic at the sight of conflict markers fades quickly once you've resolved a few. It's just Git asking you to make a decision it can't make on its own.
+
+## A few habits worth building early
+
+**Commit often, in small pieces.** It's easier to combine small commits later than to split apart one giant one.
+
+**Write the commit message before you second-guess it.** If you can't summarize the change in one line, that's often a sign the change is doing too many things at once.
+
+**Pull before you push**, especially on a shared branch, so you're not surprised by a rejected push because someone else's changes landed first.
+
+**Don't be afraid of branches.** Creating one costs nothing, and it protects the main line of history from half-finished work.
+
+**Read your own diff before opening a pull request.** It's the fastest way to catch a stray console log, a leftover comment, or a change you didn't mean to include.
+
+None of this requires memorizing dozens of commands. A handful of them — status, add, commit, branch, push, and merge — cover the vast majority of day-to-day work. The rest of Git's feature set is there for the moments you need it, and it's easier to pick up gradually once this core loop feels natural.
