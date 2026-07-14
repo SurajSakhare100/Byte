@@ -9,14 +9,14 @@ export const metadata: Metadata = createPageMetadata({
   description: 'The page you are looking for does not exist or may have been moved.',
   path: '/404',
   noIndex: true,
-  image: site.images.icon,
+  image: site.images.og,
 });
 
 export default function NotFound() {
   return (
     <section className="container-page flex min-h-[70vh] flex-col items-center justify-center py-16 text-center">
       <Image
-        src={site.images.icon}
+        src={site.images.og}
         alt={site.name}
         width={120}
         height={120}

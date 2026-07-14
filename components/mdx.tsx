@@ -1,17 +1,14 @@
 import type { ComponentPropsWithoutRef } from 'react';
 import { isValidYouTubeId } from '@/lib/sanitize';
-
-function slug(value: string) {
-  return value.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '');
-}
+import { slugify } from '@/lib/slug';
 
 function YouTubeEmbed({ id }: { id: string }) {
   if (!isValidYouTubeId(id)) return null;
 
   return (
-    <div className="my-7 aspect-video overflow-hidden rounded-xl">
+    <div className="my-7 aspect-video max-w-full overflow-hidden rounded-xl">
       <iframe
-        className="h-full w-full"
+        className="h-full w-full max-w-full"
         src={`https://www.youtube-nocookie.com/embed/${id}`}
         title="YouTube video"
         loading="lazy"
@@ -28,7 +25,7 @@ export const mdxComponents = {
   h2: ({ children, ...props }: ComponentPropsWithoutRef<'h2'>) => {
     const text = String(children);
     return (
-      <h2 id={slug(text)} {...props}>
+      <h2 id={slugify(text)} {...props}>
         {children}
       </h2>
     );
@@ -36,7 +33,7 @@ export const mdxComponents = {
   h3: ({ children, ...props }: ComponentPropsWithoutRef<'h3'>) => {
     const text = String(children);
     return (
-      <h3 id={slug(text)} {...props}>
+      <h3 id={slugify(text)} {...props}>
         {children}
       </h3>
     );

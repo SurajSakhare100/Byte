@@ -8,7 +8,7 @@ export function getPreferredTheme(): Theme {
   const stored = localStorage.getItem(THEME_STORAGE_KEY);
   if (stored === 'dark' || stored === 'light') return stored;
 
-  return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  return 'light';
 }
 
 export function applyTheme(theme: Theme) {
@@ -19,4 +19,4 @@ export function persistTheme(theme: Theme) {
   localStorage.setItem(THEME_STORAGE_KEY, theme);
 }
 
-export const themeScript = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');if(t==='dark'||(!t&&window.matchMedia('(prefers-color-scheme: dark)').matches)){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})();`;
+export const themeScript = `(function(){try{var t=localStorage.getItem('${THEME_STORAGE_KEY}');if(t==='dark'){document.documentElement.classList.add('dark')}else{document.documentElement.classList.remove('dark')}}catch(e){}})();`;

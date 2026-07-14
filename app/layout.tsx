@@ -23,7 +23,7 @@ export default function RootLayout({
         <ThemeScript />
         <StructuredData />
       </head>
-      <body>
+      <body className="min-w-0 overflow-x-clip">
         <Script
           async
           src={`https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=${adsense.client}`}
@@ -31,7 +31,7 @@ export default function RootLayout({
           strategy="afterInteractive"
         />
         <Navbar />
-        <main>{children}</main>
+        <main className="min-w-0 overflow-x-clip">{children}</main>
         <Footer />
         {GA_ID && (
           <>

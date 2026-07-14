@@ -9,6 +9,7 @@ import { mdxComponents } from '@/components/mdx';
 import { formatDate, getAllPosts, getPost, headings } from '@/lib/posts';
 import { createArticleMetadata } from '@/lib/seo';
 import { site } from '@/lib/site';
+import { categoryPath, tagPath } from '@/lib/slug';
 
 export function generateStaticParams() {
   return getAllPosts().map((post) => ({ slug: post.slug }));
@@ -65,18 +66,21 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
       <ArticleTools title={post.title} url={articleUrl} />
 
       <article>
-        <div className="container-page py-10">
-          <div className="mx-auto max-w-3xl">
-            <nav className="text-sm text-zinc-500">
-              <Link href="/">Home</Link> / <Link href="/blog">Blog</Link> / {post.category}
+        <div className="container-page py-8 sm:py-10">
+          <div className="mx-auto max-w-3xl min-w-0">
+            <nav className="break-words text-sm text-zinc-500">
+              <Link href="/">Home</Link> / <Link href="/blog">Blog</Link> /{' '}
+              <Link href={categoryPath(post.category)}>{post.category}</Link>
             </nav>
 
-            <div className="mt-7 inline-block rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
+            <div className="mt-7 inline-block max-w-full rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
               {post.category}
             </div>
 
-            <h1 className="mt-4 text-4xl font-black tracking-[-.05em] sm:text-6xl">{post.title}</h1>
-            <p className="mt-5 text-xl leading-8 text-zinc-600 dark:text-zinc-400">
+            <h1 className="mt-4 break-words text-3xl font-black tracking-[-.05em] sm:text-4xl lg:text-6xl">
+              {post.title}
+            </h1>
+            <p className="mt-5 break-words text-lg leading-8 text-zinc-600 dark:text-zinc-400 sm:text-xl">
               {post.description}
             </p>
 
@@ -96,14 +100,14 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
           </div>
 
           <div
-            className="mx-auto mt-10 h-64 max-w-5xl rounded-3xl bg-gradient-to-br from-black to-zinc-500 sm:h-96"
+            className="mx-auto mt-8 h-48 max-w-5xl rounded-2xl bg-gradient-to-br from-black to-zinc-500 sm:mt-10 sm:h-64 sm:rounded-3xl lg:h-96"
             style={coverStyle}
           />
         </div>
 
         <AdSlot variant="banner" label="Advertisement" />
 
-        <div className="container-page grid max-w-7xl gap-12 lg:grid-cols-[190px_minmax(0,700px)]">
+        <div className="container-page grid min-w-0 max-w-7xl gap-8 lg:grid-cols-[190px_minmax(0,700px)] lg:gap-12">
           <aside className="hidden lg:block">
             <div className="sticky top-24">
               <p className="text-xs font-bold uppercase tracking-wider text-zinc-500">On this page</p>
@@ -119,13 +123,13 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
             </div>
           </aside>
 
-          <div className="prose-blog">
+          <div className="prose-blog min-w-0 max-w-full">
             <MDXRemote source={post.content} components={mdxComponents} />
             <AdSlot variant="inArticle" label="Advertisement" />
             <div className="mt-10 flex flex-wrap gap-2">
               {post.tags.map((tag) => (
                 <Link
-                  href={`/tags/${tag.toLowerCase()}`}
+                  href={tagPath(tag)}
                   key={tag}
                   className="rounded-full bg-zinc-100 px-3 py-1 text-sm dark:bg-zinc-900"
                 >

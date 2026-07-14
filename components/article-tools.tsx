@@ -36,7 +36,7 @@ export function ArticleTools({ title, url }: ArticleToolsProps) {
     <>
       <div className="fixed left-0 top-16 z-30 h-1 bg-brand" style={{ width: `${progress}%` }} />
 
-      <div className="fixed bottom-5 right-5 z-30 flex flex-col gap-2">
+      <div className="fixed bottom-4 right-4 z-30 flex flex-col gap-2 sm:bottom-5 sm:right-5">
         <button
           type="button"
           onClick={copyLink}
