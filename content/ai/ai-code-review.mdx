@@ -13,18 +13,52 @@ featured: true
 draft: false
 ---
 
-AI can make code review faster, but it should not replace the reviewer who understands the product, its users, and its constraints.
+AI tools have become a normal part of code review. They can scan a pull request in seconds and point out things a tired reviewer might miss on a Friday afternoon. That's genuinely useful. But there's a catch: the moment you start trusting the tool more than your own read of the code, review stops doing its job.
+
+This isn't a warning to avoid AI in your workflow. It's a guide to using it well.
+
+## Why this matters now
+
+More teams are wiring AI review bots into their pull request pipeline, and it's easy to see why. They never get tired. They never skip a file because it's late and everyone wants to go home. They read every line the same way at 9am and at midnight.
+
+But that consistency can trick people into treating the output as a verdict instead of a starting point. A comment that says "this could cause a null pointer exception" sounds authoritative. It's phrased like a fact. In reality, it's a guess based on patterns the model has seen before — sometimes right, sometimes not, and it has no way of knowing which. The team that quietly stops reading the code and just clicks "resolve" on every comment is the team that will eventually ship a bug the tool missed and a human would have caught.
+
+The goal isn't to distrust AI review. It's to use it the way you'd use a sharp junior teammate who reads fast but doesn't yet know the system: valuable input, not the final word.
 
 ## Start with narrow questions
 
-Ask for concrete checks: error handling paths, untested edge cases, unclear names, or likely performance problems. Narrow prompts lead to comments you can verify.
+The best results come from asking specific things, not vague ones. Instead of "review this code," try:
 
-## Treat suggestions as hypotheses
+- "Which error paths are missing handling?"
+- "What edge cases does this function not cover?"
+- "Are there any variable or function names that are confusing?"
+- "Is there anything here that looks slow at scale?"
+- "Does this change touch anything that looks like authentication or permissions?"
 
-An assistant can point at a problem, but it cannot own the decision. Read the surrounding code, reproduce the concern, and decide whether it matters in your system.
+Narrow prompts get you narrow, checkable answers. A vague prompt gets you a vague summary that sounds confident but doesn't tell you much. When the AI gives you a specific claim — "this loop re-queries the database on every iteration" — you can go look at the loop and confirm it for yourself in under a minute. That's the whole point: every comment should be something you can check, not just something you have to take on faith.
 
-<Callout>The best use of AI review is increasing the number of thoughtful questions—not automatically accepting more changes.</Callout>
+This also keeps the review focused. A broad prompt tends to produce a long list of minor style notes mixed in with the one comment that actually matters. A narrow prompt, asked at the right moment, surfaces the thing you actually needed to know.
 
-## Keep the review human
+## Treat every suggestion as a hypothesis, not a verdict
 
-Design, security posture, maintenance cost, and product intent still need context. Use the tool to speed up routine inspection, then spend the saved time on the decisions that deserve care.
+An AI reviewer can flag a pattern. It cannot know your product, your users, or why a piece of code looks the way it does. Maybe that "duplicate" logic exists because two teams intentionally handle similar cases differently. Maybe that "unused" function is called through reflection or a config file the tool never looked at. Maybe the "risky" data access pattern is fine because the table in question is tiny and read-only.
+
+So when a suggestion comes in, don't accept or reject it right away. Read the surrounding code. Try to reproduce the issue if you can. Ask yourself: does this actually matter in *this* system, with *this* team, under *these* constraints? Sometimes the answer is yes, fix it now. Sometimes it's "valid point, but not worth the risk this week." Both are fine outcomes — as long as a person made that call, not the tool.
+
+This is where a lot of teams go wrong. They set up an AI reviewer, watch it flag real issues a few times, and start extending it trust it hasn't earned for the harder calls. A tool that's right about a missing null check nine times out of ten hasn't proven it understands your authentication flow or your data model. Pattern-matching and understanding aren't the same thing, and it's easy to confuse the two after a few good catches in a row.
+
+<Callout>The best use of AI review is increasing the number of thoughtful questions you ask about a change — not increasing the number of changes you accept without thinking.</Callout>
+
+## Keep the human parts human
+
+Some things just aren't the AI's call to make. Whether a design choice fits the product. Whether a shortcut is an acceptable risk or a future outage. Whether the maintenance cost of a clever solution is worth it two years from now. These decisions need context that lives in people's heads — conversations with users, past incidents, a sense of where the product is heading — not in a diff.
+
+Where AI genuinely helps is with the repetitive, mechanical parts of review: catching a missing null check, flagging an inconsistent naming pattern, noticing a function that's grown too long, spotting a copy-pasted block that should've been a shared helper. Let it do that grunt work. It's exactly the kind of thing that's easy to miss when you're tired and hard to justify spending your best attention on.
+
+Then take the time you saved and spend it on the decisions that actually deserve your attention: does this feature solve the right problem, is this the right place to add complexity, will this hold up under real usage. Those are the questions no tool can answer for you, because they depend on knowing things no code review comment can capture.
+
+## A simple rule to keep in mind
+
+If you can't explain, in your own words, why a piece of code is a problem, don't approve a fix for it just because a tool said so — and don't dismiss it either. Go find out. That one habit is the difference between AI review that makes your team sharper and AI review that quietly makes everyone worse at reading code.
+
+Used this way, AI doesn't replace the reviewer. It gives the reviewer more room to think about the things that actually need a human mind behind them.

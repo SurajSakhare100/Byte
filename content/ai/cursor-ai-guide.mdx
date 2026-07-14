@@ -13,12 +13,85 @@ featured: false
 draft: false
 ---
 
-Cursor can help inspect a codebase, propose edits, and explain unfamiliar code. Its value grows with precise context.
+Cursor is a code editor built around AI, forked from VS Code so it feels familiar from the first minute, but with an assistant woven into almost every part of the workflow. It can read your codebase, suggest edits, write whole functions, and explain code you've never seen before. Used well, it removes a lot of the busywork from coding. Used carelessly, it can quietly fill your codebase with changes nobody fully understands.
+
+This guide walks through what Cursor actually does, how to prompt it so you get useful answers instead of guesses, and how to review its output so you stay in control of your own code.
+
+![Cursor AI editor interface with inline chat panel](/assets/articles/ai/cursor-interface-overview.webp)
+
+## What Cursor actually is
+
+At its core, Cursor is VS Code with a language model wired directly into the editing experience. That matters more than it sounds, because it means Cursor isn't a separate chat window bolted onto your editor — it can see your open files, your project structure, and (if you let it) your entire codebase, and it can make edits directly in place rather than just printing code for you to copy and paste.
+
+Cursor ships with a few distinct modes, and knowing which one to reach for is half the battle:
+
+- **Tab completion** — an upgraded autocomplete that predicts your next few lines, sometimes across multiple files, based on what you're currently editing.
+- **Inline chat (Cmd/Ctrl+K)** — select a block of code and ask for a specific change; Cursor edits that block directly.
+- **Chat panel** — a sidebar conversation where you can ask questions about your code, paste in errors, or plan out a change before touching anything.
+- **Agent / Composer mode** — a more autonomous mode where Cursor can plan a multi-file change, write the code, and even run terminal commands, checking in with you as it goes.
+
+Each of these trades off differently between speed and control. Tab completion is fast and low-risk because you're approving one line at a time. Agent mode is powerful but needs a tighter leash, because it can touch a lot of files in one pass.
 
 ## Give a bounded task
 
-Name the files, constraints, and desired outcome. Ask for a plan before asking for a large edit.
+The single biggest factor in getting good output from Cursor is how you frame the task. A vague prompt like "fix the bug" or "make this better" forces the model to guess at what you actually want, and it will guess — confidently, and not always correctly.
+
+A bounded task looks different. It names:
+
+- **The files or functions involved** — point Cursor at `@filename` or `@folder` so it knows exactly where to look, instead of hoping it picks the right file out of a large project.
+- **The constraint** — "don't change the public API," "keep this compatible with Node 18," "no new dependencies."
+- **The outcome you want** — not just "fix the login flow" but "the login form should show a specific error message when the password is wrong, instead of a generic failure."
+
+For anything bigger than a small edit, ask for a plan before asking for the actual change. Something like: "Before you write any code, tell me how you'd approach adding rate limiting to this API route. What files would you touch, and what would you add?" This costs you nothing extra and gives you a chance to catch a bad approach before it turns into a 200-line diff.
+
+![Example of a scoped prompt referencing specific files in Cursor](/assets/articles/ai/cursor-scoped-prompt.webp)
+
+This is especially important in agent mode, where a single instruction can trigger changes across many files. Without a clear boundary, the agent tends to over-deliver — refactoring things you didn't ask about, renaming variables for "consistency," or adding error handling in places you didn't want touched yet. None of that is malicious; it's just what happens when the model fills in gaps you left open. Closing those gaps yourself, up front, is cheaper than untangling them afterward.
+
+## Use context deliberately
+
+Cursor is only as good as the context it has. If you don't point it at the right files, it will often invent plausible-looking code that doesn't match your actual patterns — a different naming convention, a different error-handling style, or a function signature that doesn't exist anywhere in your project.
+
+A few habits help here:
+
+- **Reference specific files with `@`** rather than relying on Cursor to search the whole codebase for relevant code. This is faster and more accurate for anything beyond a trivial task.
+- **Paste in error messages and stack traces directly**, rather than describing the bug in your own words. The exact wording of an error often carries information a paraphrase loses.
+- **Keep the codebase indexed and up to date** so codebase-wide search actually reflects your current code, not an old snapshot.
+- **Give it your conventions once, then reuse that framing.** If your team always uses a specific error-handling pattern or a particular testing library, say so early in a conversation rather than assuming Cursor will infer it from a small sample of files.
+
+The more precise the input, the less the model has to guess — and guessing is where most of the bad output comes from.
 
 ## Review every change
 
-Treat generated changes as a draft. Check the diff, run tests, and confirm behavior in the application.
+This is the part that's easiest to skip when you're moving fast, and the part that matters most.
+
+Treat every AI-generated change as a draft, not a finished patch. That means:
+
+1. **Read the diff line by line**, the same way you would for a teammate's pull request. Don't just skim the summary Cursor gives you — read the actual code.
+2. **Run the tests.** If there aren't tests for the area you just changed, that's worth noticing in itself — it means you're reviewing this change with less of a safety net than you'd like.
+3. **Confirm the behavior in the running application**, not just in your head. AI-written code often looks correct at a glance because it's syntactically clean and well-commented; that polish can make you less likely to actually run it and check.
+4. **Look for scope creep.** Did the change do only what you asked, or did it also "improve" a few things nearby? Extra changes you didn't request are the most common way unreviewed bugs slip in, because they're outside the area you were focused on.
+
+![Reviewing a Cursor-generated diff before accepting changes](/assets/articles/ai/cursor-diff-review.webp)
+
+A useful habit: before accepting a larger change, ask Cursor to explain what it did and why, in plain language, as if you were the one being reviewed. If the explanation doesn't match what you see in the diff, that mismatch is worth investigating before you merge anything.
+
+## Common ways teams get this wrong
+
+A few patterns show up again and again once teams start relying on Cursor for a meaningful share of their code:
+
+**Accepting large agent-mode changes without reading them.** The bigger the diff, the more tempting it is to skim. This is exactly backwards — bigger changes deserve more scrutiny, not less, because there's more surface area for something subtle to go wrong.
+
+**Letting the AI make architectural decisions by default.** Cursor is good at implementing a decision once you've made it — which library to use, how to structure a module, what pattern to follow. It's much weaker at deciding those things itself, because it doesn't know your team's constraints, your deployment environment, or your future plans. Make the structural calls yourself, then let the tool help execute them.
+
+**Trusting fluent explanations over checked behavior.** A confident, well-written explanation of what code does is not the same as evidence that the code actually does it. Run it. Check it. The two are easy to conflate because AI output tends to read as more authoritative than it is.
+
+**Skipping tests because "the AI already checked it."** Cursor can run and read test output, but it can't replace tests you haven't written, and it can't guarantee that passing tests mean correct behavior for your actual users.
+
+## Getting the most out of it
+
+Used deliberately, Cursor removes a lot of the mechanical overhead of coding: boilerplate, repetitive edits across files, first drafts of functions you'd otherwise type out by hand, and quick explanations of unfamiliar code. That's real time saved, and it adds up over a week or a month.
+
+The trade-off is that it asks for more discipline in a different place. Instead of spending your effort typing, you spend it framing tasks clearly, checking context, and reviewing output carefully. That's a fair trade if you actually make it — but it's easy to let the review step erode over time as the tool earns your trust on smaller tasks. Keep the review step fixed, even as your confidence in the tool grows. The tasks get bigger; the risk of an unreviewed mistake grows right along with them.
+
+Cursor doesn't replace the judgment a developer brings to a codebase — what to build, how much complexity is worth taking on, what a change will mean for the next person who reads this code. It's a fast, capable pair of hands. The thinking still has to be yours.

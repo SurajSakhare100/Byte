@@ -1,1 +1,1 @@
-export const site = { name: 'byte', url: 'https://byte.vercel.app', description: 'Thoughtful notes for people who build software.' };
+export const site = { name: 'byte', url: 'https://byte.surajx.in', description: 'Tech articles to help you build better software.' };

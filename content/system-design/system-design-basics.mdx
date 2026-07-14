@@ -13,12 +13,75 @@ featured: false
 draft: false
 ---
 
-System design is the practice of choosing components and trade-offs that meet a product’s needs.
+System design is the practice of choosing components and trade-offs that meet a product's needs. There's no single "correct" architecture for a given problem — a design that's perfect for a startup with a thousand users can be completely wrong for a company with a hundred million, and vice versa. What makes someone good at system design isn't memorizing a list of tools. It's understanding what each tool actually buys you, and what it costs.
+
+This article walks through the ideas that come up in almost every system design discussion: requirements, bottlenecks, availability, data, and the trade-offs that tie them together.
 
 ## Begin with requirements
 
-Clarify users, expected traffic, latency, availability, and consistency needs before drawing boxes.
+Before drawing a single box or arrow, get clear on what the system actually needs to do. Skipping this step is the most common reason a design goes wrong — not because the components were bad, but because they were solving a problem the system didn't actually have.
+
+A few questions to answer early:
+
+- **Who are the users, and how many are there?** A system for ten thousand users and a system for ten million are not the same system with more servers — they often need entirely different approaches to data storage and traffic handling.
+- **What does the traffic pattern look like?** Steady and predictable, or spiky — like a ticket sale that gets a burst of requests in the first thirty seconds? Read-heavy, write-heavy, or a mix?
+- **What latency is acceptable?** A search suggestion needs a response in well under a second. A nightly report can take minutes. Designing both to the same standard wastes effort in one direction or the other.
+- **What availability does this need?** Some systems can tolerate a few minutes of downtime a month. Others — payment processing, emergency services — cannot.
+- **What consistency does this need?** Does every user need to see the exact same data at the exact same moment, or is it fine if a change takes a few seconds to show up everywhere?
+
+These aren't just interview talking points. They genuinely change the answer. A chat app that can tolerate a message showing up half a second late for some users can use a much simpler, cheaper architecture than a stock trading system where every millisecond and every inconsistency has a cost.
 
 ## Design for the bottleneck
 
-Caching, queues, replicas, and partitions are useful only when they address a real workload constraint.
+Caching, queues, replicas, and partitions are useful only when they address a real workload constraint. It's tempting to reach for these tools because they show up in every system design article, but adding them without a real bottleneck just adds complexity and new failure points for no benefit.
+
+The right approach is to find where the system actually strains first, and design for that.
+
+**Caching** helps when the same data gets read far more often than it changes — product listings, user profiles, computed results that are expensive to redo. It doesn't help, and can actively hurt, when data changes constantly or when correctness matters more than speed, because now you have two places data can live and get out of sync.
+
+**Queues** help when work can happen slightly later without anyone noticing, and when you want to smooth out spikes in traffic — sending emails, processing uploaded files, generating reports. A queue turns a burst of ten thousand requests into a steady trickle the system can handle, instead of a wall the system has to hit all at once. They don't help when a user is waiting on the result right now; nobody wants their login request queued.
+
+**Replicas** — extra copies of a database or service — help with two different problems, and it matters which one you're solving. Read replicas spread out read traffic so one database isn't handling every query alone. Replicas for availability keep a backup ready in case the primary fails. Confusing these two goals leads to designs that solve neither well.
+
+**Partitioning (sharding)** splits data across multiple machines so no single one has to hold everything or answer every query. This is useful when a dataset has genuinely outgrown one machine's storage or query capacity. It's a serious commitment, though — once data is split by some key (user ID, region, account), certain queries that used to be simple (like "give me everything for this report across all users") become much harder, because the data isn't in one place anymore.
+
+The pattern across all four: each solves a specific kind of pressure. Add them because you've found that pressure in your system, not because a diagram looked incomplete without them.
+
+## Availability and the trade-offs behind it
+
+Availability means the system keeps responding to requests, even when parts of it fail. Getting this right is mostly about assuming failure will happen — a server will crash, a network link will drop, a disk will fill up — and designing so that one failure doesn't take down the whole system.
+
+A few ideas that come up constantly:
+
+- **Redundancy.** Don't run a single copy of anything critical. If one server, one database, or one region goes down, something else should be able to take over.
+- **Load balancing.** Spread requests across multiple servers so no single one becomes a single point of failure or a traffic bottleneck.
+- **Health checks and failover.** The system needs to notice when a component is unhealthy and route around it automatically, rather than waiting for a person to notice.
+- **Graceful degradation.** When something does fail, a well-designed system loses a feature, not the whole product. If a recommendation engine goes down, the site should still let people check out — just without personalized suggestions for a while.
+
+This connects to a well-known idea in distributed systems: when a network problem splits part of your system off from the rest (a network partition), you generally have to choose between staying fully consistent — every read sees the latest write — or staying fully available — every request gets some response, even if it's slightly stale. You can't fully guarantee both at the same time during that partition. Most real systems don't pick one extreme forever; they choose per feature, based on what actually matters for that piece of the product. A social media "like" count can afford to be a little stale. A bank balance usually can't.
+
+## Thinking about data
+
+Where and how data lives shapes almost everything else about a system's design.
+
+**Relational databases** (like PostgreSQL or MySQL) are a strong default when data has clear structure and relationships, and when strong consistency and complex queries across related data matter — orders linked to customers linked to products, for example.
+
+**NoSQL databases** (document stores, key-value stores, wide-column stores) tend to fit better when data doesn't have a fixed shape, when the access pattern is simple and known in advance (fetch by ID, mostly), or when the system needs to scale writes across many machines more easily than a traditional relational database allows.
+
+Neither is "better" in general — they answer different questions well. A system might reasonably use both: a relational database for orders and billing, where consistency and relationships matter, and a key-value store for session data or a cache, where speed and simple lookups matter more.
+
+**Indexes** speed up reads at the cost of slightly slower writes and extra storage. They're worth it when a query runs often and needs to be fast; they're not worth adding for a query that runs once a month.
+
+**Replication and backups** are two different safety nets and people sometimes confuse them. Replication protects against a single machine failing, right now, with minimal disruption. Backups protect against data corruption, accidental deletion, or a bug that quietly writes bad data everywhere — because a backup taken yesterday isn't affected by a bug introduced today, while a live replica usually is.
+
+## Putting it together
+
+A useful way to approach any system design problem, whether in an interview or at work, is roughly this order:
+
+1. **Clarify the requirements** — users, scale, latency, availability, consistency — before anything else.
+2. **Sketch the simplest design that could work** for those requirements. Don't start with the most complex version; start with the version that would work if traffic were ten times smaller, then figure out what breaks as it grows.
+3. **Find the actual bottleneck** in that simple design — where does it fall over first as load increases? Slow reads? Too many writes to one database? A single point of failure?
+4. **Add the specific tool that addresses that bottleneck** — a cache, a queue, a replica, a partition — and explain why that tool and not another one.
+5. **Repeat.** Real systems evolve this way too: they don't start complex, they get more complex one real bottleneck at a time.
+
+This order matters because it keeps every piece of the design tied to an actual need. It's easy to end up with an over-engineered system that has a cache, a queue, and five database replicas for a product that gets a hundred requests a day. It's also easy to end up with an under-engineered system that falls over the first time it gets real traffic. The skill isn't picking the fanciest tools — it's matching the design to the actual shape of the problem, and being able to explain, clearly, why each piece is there.
