@@ -19,11 +19,33 @@ This isn't a warning to avoid AI in your workflow. It's a guide to using it well
 
 ## Why this matters now
 
-More teams are wiring AI review bots into their pull request pipeline, and it's easy to see why. They never get tired. They never skip a file because it's late and everyone wants to go home. They read every line the same way at 9am and at midnight.
+More teams are wiring AI review bots into their pull request pipeline, and it's easy to see why. They never get tired. They never skip a file because it's late and everyone wants to go home. They read every line the same way at 9am and at midnight. They don't get bored on the fortieth pull request of the week, and they don't wave something through just because the author is someone whose code is "usually fine."
 
-But that consistency can trick people into treating the output as a verdict instead of a starting point. A comment that says "this could cause a null pointer exception" sounds authoritative. It's phrased like a fact. In reality, it's a guess based on patterns the model has seen before — sometimes right, sometimes not, and it has no way of knowing which. The team that quietly stops reading the code and just clicks "resolve" on every comment is the team that will eventually ship a bug the tool missed and a human would have caught.
+That consistency is genuinely valuable. But it can also trick people into treating the output as a verdict instead of a starting point. A comment that says "this could cause a null pointer exception" sounds authoritative. It's phrased like a fact, delivered in the same confident tone whether it's completely right or completely wrong. In reality, it's a guess based on patterns the model has seen before — sometimes accurate, sometimes not, and it has no reliable way of knowing which is which in any given case. The team that quietly stops reading the code and just clicks "resolve" on every comment is the team that will eventually ship a bug the tool missed and a human would have caught.
 
-The goal isn't to distrust AI review. It's to use it the way you'd use a sharp junior teammate who reads fast but doesn't yet know the system: valuable input, not the final word.
+There's also a subtler risk that doesn't get talked about enough: skill atrophy. Reading code carefully is a skill, and like any skill, it gets weaker with disuse. If a reviewer spends two years rubber-stamping AI comments instead of actually tracing through logic, they'll be a worse reviewer at the end of those two years than at the start — even though the number of pull requests they "reviewed" went up.
+
+None of this means you should distrust AI review or avoid it. It means using it the way you'd use a sharp junior teammate who reads fast but doesn't yet know the system: valuable input, worth listening to, but not the final word on anything that matters.
+
+## What AI review is actually good at
+
+Before getting into how to use these tools well, it helps to be honest about what they're actually good at, because that shapes how much weight to give their output.
+
+AI reviewers are strong at:
+
+- **Pattern recognition across a large codebase.** They can spot that a function in one file looks suspiciously similar to a function in another file that was already flagged as buggy, or that a piece of logic resembles a pattern known to cause bugs.
+- **Consistency checks.** Naming conventions, formatting, whether error handling follows the same shape as the rest of the codebase — this is exactly the kind of repetitive comparison that's tedious for a human and trivial for a tool.
+- **Catching the obvious stuff under time pressure.** Missing null checks, unclosed resources, off-by-one errors, forgotten `await` keywords. These are easy to miss when you're skimming a diff at the end of a long day, and an AI reviewer doesn't skim.
+- **Explaining unfamiliar code.** If you're reviewing a pull request in a part of the codebase you don't know well, asking an AI tool to explain what a function does before you review it can save real time, as long as you verify the explanation against the actual code afterward.
+
+AI reviewers are weaker at:
+
+- **Understanding intent.** It can tell you that two functions look similar. It cannot tell you whether that similarity is a mistake or a deliberate design choice made for reasons that live in a meeting from six months ago.
+- **Judging business risk.** Whether a shortcut is acceptable this week because of a deadline, or whether a slower, safer approach is worth the extra day, is not something a pattern-matching tool can weigh.
+- **Knowing what changed and why.** A human reviewer often has context from Slack conversations, tickets, or a five-minute hallway chat that explains why a piece of code looks the way it does. The AI only sees the diff.
+- **Long-term maintenance judgment.** Whether a clever one-liner will be a nightmare to debug in two years is a call that depends on knowing your team, your turnover, and how documentation actually gets used in practice — not just on the code itself.
+
+Keeping this split in mind — pattern recognition versus judgment — is the single most useful mental model for using these tools well.
 
 ## Start with narrow questions
 
@@ -34,31 +56,71 @@ The best results come from asking specific things, not vague ones. Instead of "r
 - "Are there any variable or function names that are confusing?"
 - "Is there anything here that looks slow at scale?"
 - "Does this change touch anything that looks like authentication or permissions?"
+- "If this input were empty, null, or unexpectedly large, what would happen?"
+- "Does this match the error-handling pattern used elsewhere in this file?"
 
-Narrow prompts get you narrow, checkable answers. A vague prompt gets you a vague summary that sounds confident but doesn't tell you much. When the AI gives you a specific claim — "this loop re-queries the database on every iteration" — you can go look at the loop and confirm it for yourself in under a minute. That's the whole point: every comment should be something you can check, not just something you have to take on faith.
+Narrow prompts get you narrow, checkable answers. A vague prompt gets you a vague summary that sounds confident but doesn't tell you much beyond what you already suspected. When the AI gives you a specific claim — "this loop re-queries the database on every iteration" — you can go look at the loop and confirm it for yourself in under a minute. That's the whole point: every comment should be something you can check, not just something you have to take on faith.
 
-This also keeps the review focused. A broad prompt tends to produce a long list of minor style notes mixed in with the one comment that actually matters. A narrow prompt, asked at the right moment, surfaces the thing you actually needed to know.
+This also keeps the review focused. A broad prompt tends to produce a long list of minor style notes mixed in with the one comment that actually matters, and it's easy for that one important comment to get buried under ten trivial ones. A narrow prompt, asked at the right moment, surfaces the thing you actually needed to know without the noise.
+
+There's a practical trick worth mentioning here: ask the same narrow question twice, in slightly different ways, if the change is important enough. "What edge cases does this miss?" and "What input would break this function?" often surface different answers even though they're really asking the same thing. The overlap between the two answers is usually where the real issues are.
 
 ## Treat every suggestion as a hypothesis, not a verdict
 
-An AI reviewer can flag a pattern. It cannot know your product, your users, or why a piece of code looks the way it does. Maybe that "duplicate" logic exists because two teams intentionally handle similar cases differently. Maybe that "unused" function is called through reflection or a config file the tool never looked at. Maybe the "risky" data access pattern is fine because the table in question is tiny and read-only.
+An AI reviewer can flag a pattern. It cannot know your product, your users, or why a piece of code looks the way it does. Maybe that "duplicate" logic exists because two teams intentionally handle similar cases differently, for reasons that made sense in a planning meeting last quarter. Maybe that "unused" function is called through reflection or a config file the tool never looked at. Maybe the "risky" data access pattern is fine because the table in question is tiny, read-only, and gets rebuilt from scratch every night anyway.
 
-So when a suggestion comes in, don't accept or reject it right away. Read the surrounding code. Try to reproduce the issue if you can. Ask yourself: does this actually matter in *this* system, with *this* team, under *these* constraints? Sometimes the answer is yes, fix it now. Sometimes it's "valid point, but not worth the risk this week." Both are fine outcomes — as long as a person made that call, not the tool.
+So when a suggestion comes in, don't accept or reject it right away. Read the surrounding code. Try to reproduce the issue if you can — actually run it, don't just imagine it. Ask yourself: does this actually matter in *this* system, with *this* team, under *these* constraints? Sometimes the answer is yes, fix it now. Sometimes it's "valid point, but not worth the risk this week, let's ticket it." Both are fine outcomes — as long as a person made that call, not the tool.
 
-This is where a lot of teams go wrong. They set up an AI reviewer, watch it flag real issues a few times, and start extending it trust it hasn't earned for the harder calls. A tool that's right about a missing null check nine times out of ten hasn't proven it understands your authentication flow or your data model. Pattern-matching and understanding aren't the same thing, and it's easy to confuse the two after a few good catches in a row.
+This is where a lot of teams go wrong. They set up an AI reviewer, watch it flag real issues a few times in a row, and start extending it trust it hasn't actually earned for the harder calls. A tool that's right about a missing null check nine times out of ten hasn't proven it understands your authentication flow or your data model. Pattern-matching and understanding aren't the same thing, and it's easy to confuse the two after a streak of good catches.
 
-<Callout>The best use of AI review is increasing the number of thoughtful questions you ask about a change — not increasing the number of changes you accept without thinking.</Callout>
+A useful habit: keep a rough mental (or literal) tally of how often a given tool's comments turn out to be worth acting on, versus how often they're noise or flat-out wrong. Over a few weeks, this tells you a lot about how much weight to give its output on your specific codebase — which is different from how much weight to give it in general, since every codebase has its own quirks that a general-purpose tool won't fully understand.
+
+> The best use of AI review is increasing the number of thoughtful questions you ask about a change — not increasing the number of changes you accept without thinking.
+
+## Build a workflow, not just a habit
+
+Using AI review well isn't just about mindset — it helps to have an actual process. Here's a workflow that tends to hold up across different teams and codebases:
+
+**1. Read the diff yourself first, before opening any AI tool.** Form your own initial impression. This matters more than it sounds like it should — if you see the AI's comments before you've formed your own opinion, you'll unconsciously anchor to what it says, even when it's wrong. Reading first keeps your judgment independent.
+
+**2. Run the AI review as a second pass, not a replacement for the first.** Use it to catch what you might have missed, not to do the reading for you.
+
+**3. Sort the AI's comments into three buckets.** Obviously correct and worth fixing immediately. Plausible but needs verification. Clearly off-base or missing context. Don't spend equal time on all three — the middle bucket is where your attention should go.
+
+**4. Verify the middle bucket by actually checking the code, not by re-asking the AI.** Asking the same tool to double-check its own claim tends to just get you a more confident version of the same answer, right or wrong. Go look at the code, or ask the author.
+
+**5. Leave the "why" in your review comments, not just the "what."** If you're passing along an AI-flagged issue to a teammate, explain why it matters in your own words. If you can't explain it in your own words, that's a signal you haven't actually verified it yet — go back to step 4.
+
+**6. Track patterns over time.** If a tool consistently misses a certain category of bug in your codebase — say, issues specific to your queueing system or a particular internal library — that's useful information. It tells you where human eyes need to stay sharp regardless of what the tool says.
+
+This workflow takes a bit more discipline than just skimming a bot's comments and clicking through, but it's what keeps the tool as an aid rather than letting it quietly take over the thinking part of the job.
 
 ## Keep the human parts human
 
-Some things just aren't the AI's call to make. Whether a design choice fits the product. Whether a shortcut is an acceptable risk or a future outage. Whether the maintenance cost of a clever solution is worth it two years from now. These decisions need context that lives in people's heads — conversations with users, past incidents, a sense of where the product is heading — not in a diff.
+Some things just aren't the AI's call to make. Whether a design choice fits the product. Whether a shortcut is an acceptable risk or a future outage waiting to happen. Whether the maintenance cost of a clever solution is worth it two years from now, when the person who wrote it may not even be on the team anymore. These decisions need context that lives in people's heads — conversations with users, past incidents, a sense of where the product is heading — not in a diff.
 
-Where AI genuinely helps is with the repetitive, mechanical parts of review: catching a missing null check, flagging an inconsistent naming pattern, noticing a function that's grown too long, spotting a copy-pasted block that should've been a shared helper. Let it do that grunt work. It's exactly the kind of thing that's easy to miss when you're tired and hard to justify spending your best attention on.
+Where AI genuinely helps is with the repetitive, mechanical parts of review: catching a missing null check, flagging an inconsistent naming pattern, noticing a function that's grown too long, spotting a copy-pasted block that should've been a shared helper. Let it do that grunt work. It's exactly the kind of thing that's easy to miss when you're tired and hard to justify spending your best attention on, precisely because it's mechanical rather than judgment-based.
 
-Then take the time you saved and spend it on the decisions that actually deserve your attention: does this feature solve the right problem, is this the right place to add complexity, will this hold up under real usage. Those are the questions no tool can answer for you, because they depend on knowing things no code review comment can capture.
+Then take the time you saved and spend it on the decisions that actually deserve your attention: does this feature solve the right problem, is this the right place to add complexity, will this hold up under real usage at three in the morning when something unexpected happens. Those are the questions no tool can answer for you, because they depend on knowing things no code review comment can capture — how the team actually operates, what broke last time something similar shipped, what the product roadmap looks like six months out.
+
+It's worth saying plainly: a team that uses AI review well often ends up doing *more* thinking during code review, not less. The mechanical checking gets faster, which frees up time and mental energy for the judgment calls that were always the actual point of having a human review process in the first place.
+
+## Common mistakes teams make with AI review
+
+A few patterns show up again and again in teams that adopt AI code review without much of a plan:
+
+**Treating every comment as equally important.** Not every flagged issue deserves the same attention. A missing null check on a rarely-used internal script is not the same priority as a potential auth bypass. Teams that don't triage end up either ignoring everything (alert fatigue) or fixing everything (wasted time on low-stakes issues).
+
+**Letting the tool set the definition of "done."** If a pull request only gets merged once every AI comment is resolved, people will start writing code to satisfy the tool rather than to solve the actual problem. That's backwards. The tool should inform the review, not define the finish line.
+
+**Skipping review entirely on "small" changes.** A one-line change can still break something important. AI tools are good at making small changes feel low-risk because they don't flag anything — but the absence of a flag isn't the same as the absence of risk, especially for logic the tool doesn't have full context on.
+
+**Not adjusting prompts over time.** A generic "review this code" prompt used for months without refinement tends to produce generic, low-value output. Teams that get the most value tend to build up a small library of specific prompts tailored to their codebase's actual failure patterns.
+
+**Forgetting to review the reviewer.** Nobody audits whether the AI tool's suggestions are actually improving code quality over time. Every few months, it's worth asking: are we shipping fewer bugs since we added this? Are reviews faster without being worse? If the answer is unclear, the tool might be adding noise rather than value.
 
 ## A simple rule to keep in mind
 
 If you can't explain, in your own words, why a piece of code is a problem, don't approve a fix for it just because a tool said so — and don't dismiss it either. Go find out. That one habit is the difference between AI review that makes your team sharper and AI review that quietly makes everyone worse at reading code.
 
-Used this way, AI doesn't replace the reviewer. It gives the reviewer more room to think about the things that actually need a human mind behind them.
+Used this way, AI doesn't replace the reviewer. It gives the reviewer more room to think about the things that actually need a human mind behind them — and that, ultimately, is what good code review was always supposed to be about.

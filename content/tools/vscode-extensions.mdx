@@ -13,12 +13,191 @@ featured: false
 draft: false
 ---
 
-Extensions should reduce friction, not turn your editor into a dashboard. Start with a formatter, linter, Git integration, and language support.
+Extensions should reduce friction, not turn your editor into a dashboard. Start with a formatter, linter, Git integration, and language support. That is the whole idea behind this list. VS Code's marketplace now holds well over 50,000 extensions, and most of them solve problems you don't actually have. This guide picks the 25 that solve problems almost every developer does have, and ranks them by how much daily friction they remove.
 
 ## Essential categories
 
-Use Prettier for formatting, ESLint for feedback, GitLens for history, and error highlighting for fast debugging.
+Use Prettier for formatting, ESLint for feedback, GitLens for history, and error highlighting for fast debugging. These four ideas — formatting, linting, Git context, and inline errors — cover most of what makes an editor feel slow or fast to work in. If your setup is missing one of these categories, start there before adding anything else.
+
+## How this list was built
+
+Before ranking anything, it helps to have a filter. A good extension should meet a few basic tests: it should come from a publisher you can trust, it should still be getting updates, and it should not slow your editor down or ask for permissions it doesn't need. A lot of extensions in the marketplace fail one of these tests quietly — they were useful two years ago and nobody has touched them since.
+
+There's also a simple way to think about why extensions matter in the first place. VS Code by itself is a fast, general-purpose text editor. It knows how to open files, highlight syntax, and let you run a terminal. Everything past that — real linting, deep Git context, API testing, AI help — comes from extensions. That's the trade-off VS Code made on purpose: keep the core editor light, and let people build exactly the setup their stack needs instead of shipping every feature to every user by default. The downside is that a brand-new install feels a little bare, and a badly chosen set of extensions can make it feel bloated. This list is meant to solve both problems at once.
+
+One more thing before the list: installing an extension takes ten seconds, but that speed is exactly what causes clutter. Open the Extensions view with `Ctrl+Shift+X` (or `Cmd+Shift+X` on a Mac), search a name, click Install, and it's already changing how your editor behaves. Because it's so easy, it's worth pausing for a moment on each one and asking whether it solves a real problem you have, not just a problem someone in a YouTube video seemed to have.
+
+With that filter in mind, here are the 25 extensions worth your install, ranked from most essential to good-to-have.
+
+## 1. Prettier — Code formatter
+
+Prettier ends arguments about spacing, quotes, and semicolons before they start. You set it once, turn on "format on save," and every file in the project comes out looking the same, no matter who wrote it. Teams that skip Prettier end up with pull requests full of noise — half the diff is just someone's editor reformatting whitespace, and the real change gets buried underneath it.
+
+Setup tip: add a `.prettierrc` file to the project root so the formatting rules travel with the code, not with your personal editor settings.
+
+## 2. ESLint — Linting for JavaScript and TypeScript
+
+ESLint checks your code against a set of rules and flags problems before they turn into bugs — unused variables, missing dependencies in a React hook, comparisons that will silently misbehave. Pairing ESLint with Prettier and formatting on save is one of the most common baseline setups developers rely on. Most teams don't write their own rule set from scratch; they extend a popular config (Airbnb, Standard, or the framework's own recommended rules) and adjust from there.
+
+Setup tip: in 2026, most projects have moved to ESLint's flat config format. If you're setting up a new project, use flat config from day one — migrating later is more annoying than starting there.
+
+## 3. GitLens — Git superpowers inside the editor
+
+GitLens connects you to a line of code's history, showing who changed it, why, and linking that change back to the commit or pull request behind it. VS Code ships with basic Git support, but GitLens turns "who wrote this and why" from a multi-step detective job into a single hover. It is one of the extensions developers report using every single day, especially to see who changed a specific line without running git blame manually.
+
+Setup tip: the free version covers almost everything a solo developer or small team needs. Don't feel pressured into GitLens+ unless you specifically want its extra visual history graphs.
+
+## 4. Error Lens — Inline error and warning highlighting
+
+Error Lens takes the red and yellow squiggly underlines VS Code already shows you and puts the actual error message right there in the line, instead of making you hover or check the Problems panel. This kind of inline error visibility is frequently ranked as one of the single most useful additions to a daily workflow. Once you're used to seeing the error text without hovering, going back to squiggles-only feels like working blindfolded.
+
+## 5. GitHub Copilot (or a comparable AI coding assistant)
+
+By 2026, AI coding assistants have gone from a novelty to something close to a necessity for most developers, working directly inside the VS Code workflow instead of requiring a separate tool. Copilot suggests completions as you type, and its chat panel can explain unfamiliar code, draft tests, or help you work through a bug. It provides both inline code completion and a conversational chat interface built directly into the editor.
+
+This category also includes real alternatives worth knowing about: Cody by Sourcegraph indexes an entire codebase, and even multiple repositories, so answers are grounded in a team's real architecture rather than just the open file — useful for larger teams working across microservices. Claude Code brings Anthropic's models directly into VS Code, acting more like a teammate that edits, explains, and refactors with full context of open files, rather than just autocompleting the next line.
+
+Setup tip: don't run two AI completion tools side by side. They tend to compete for the same suggestion box and slow things down without adding value.
+
+## 6. Path Intellisense — Autocomplete for file paths
+
+A small extension with an outsized payoff. Path Intellisense suggests file names as you type an import or a link path, so you stop guessing folder names and fixing typos after the fact. It's the kind of tool you barely notice until you switch machines and realize it's missing.
+
+## 7. Auto Rename Tag — Keep HTML and JSX tags in sync
+
+Rename one side of an HTML or JSX tag and this extension updates the matching closing tag automatically. It sounds minor, but anyone who has shipped a broken page because they forgot to update a closing `</div>` knows exactly why this one earns a spot on the list.
+
+## 8. Thunder Client — Test APIs without leaving the editor
+
+Thunder Client is a lightweight REST client built into the editor, useful for quick checks and small request collections without the overhead of a separate tool like Postman. Because it stores requests and environments inside the workspace, your API collections live with the code itself and can be reused across the team. That's a real advantage over keeping request collections in a personal Postman account that nobody else on the team can see.
+
+Setup tip: keep a small collection of requests in the repository to document critical flows, define dev, staging, and production environments early, and never commit real secrets — use environment variables instead.
+
+## 9. Docker — Manage containers from the editor
+
+If your project runs in containers, this extension lets you build, start, stop, and inspect them without switching to a terminal for every command. It's regularly listed among the extensions web developers rely on for day-to-day container work. Even developers who don't work with Docker daily find it useful the moment a project needs a quick local database or a background service running in a container.
+
+## 10. Live Server — Instant preview for static pages
+
+Live Server gives you quick HTML, CSS, and JavaScript previews with automatic reload, which makes it ideal for fast experiments and mocking up simple websites. It's a strong fit for frontend developers, anyone building static sites, people learning HTML and CSS, and quick prototyping without the overhead of a full framework.
+
+Setup tip: change the default port if 5500 conflicts with something else on your machine, and turn on HTTPS in the settings if you're testing features that need a secure context, like the Web Crypto API or service workers on localhost.
+
+## 11. Pretty TypeScript Errors — Make TypeScript readable
+
+TypeScript's error messages are famously dense — a single type mismatch can produce ten lines of nested generics that are technically correct and practically unreadable. This extension reformats those cryptic messages into readable, color-coded explanations with clear code frames, and pairs especially well with Error Lens so the cleaned-up error shows up right in the line.
+
+## 12. Tailwind CSS IntelliSense — For projects using Tailwind
+
+If your project uses Tailwind, this extension gives you autocomplete for class names, shows the actual CSS a class produces on hover, and flags conflicting classes. It's commonly recommended alongside the rest of a core web development stack for anyone working across React, Next.js, or similar frameworks.
+
+## 13. Git Graph — Visualize your branch history
+
+Git Graph turns your commit history into a color-coded, easy-to-read map of branches, which is especially useful once a team is branching off feature branches instead of always working from the main trunk. When a project has more than a couple of active branches, a visual history saves real time compared to reading raw log output in a terminal.
+
+## 14. Code Spell Checker — Catch typos before they ship
+
+A typo in a variable or function name is more than a small embarrassment — it can break searchability across a codebase and cause confusion for teammates later. This extension highlights spelling errors as you type and offers corrections through the quick-fix menu, catching mistakes most people don't notice until code review.
+
+## 15. Console Ninja — See your logs inside the editor
+
+Console Ninja shows the output of your console.log statements directly inside your IDE, right next to the line that produced them, instead of making you switch to a browser console or terminal. This is also genuinely useful when debugging alongside AI tools, since it's much easier to copy the exact log output as context for a prompt.
+
+## 16. REST Client — A text-file alternative to Thunder Client
+
+If you'd rather define API requests in a plain `.http` file than click through a UI, REST Client is the alternative worth knowing. Several developers specifically reach for it when they want something that behaves "like Postman but inside the editor," without the extra interface layer. It's a matter of preference between this and Thunder Client — pick one, not both.
+
+## 17. Import Cost — See what your imports actually weigh
+
+Import Cost shows the bundle size of each package right next to the import line, so you notice before shipping that a "just for this one function" library added 200kb to your bundle. It's one of the extensions credited with improving visibility into dependency bloat, alongside GitLens for code history.
+
+## 18. Live Sass Compiler — For projects still using Sass
+
+The Live Sass compiler compiles SCSS files into CSS faster than many other compiler setups, which is handy for developers building pages with SCSS. Plain CSS has closed a lot of the gap with Sass in recent years thanks to nesting and custom properties, but plenty of existing codebases still run on Sass, and this extension removes the need for a separate build step just to preview a style change.
+
+## 19. Quokka.js — Run JavaScript without leaving the file
+
+Quokka.js lets you test JavaScript code directly inside the editor, removing the need to constantly flip over to a browser console to check whether a snippet actually works. It's particularly useful for working out a tricky array method chain or testing a small function in isolation before wiring it into a larger file.
+
+## 20. HTML CSS Support — Better autocomplete for markup
+
+This extension adds autocompletion and suggestions for HTML and CSS directly in the editor, which speeds up markup work and cuts down on typos in class names and property values. It's a quiet extension — you won't think about it much, but you'll notice its absence the first time you're back to typing class names from memory.
+
+## 21. GitHub Pull Requests and Issues — Review code without leaving VS Code
+
+For teams that live in pull requests all day, this extension belongs in the first batch of installs on any new machine. It lets you view diffs, leave comments, and check CI status directly in the editor, so reviewing a colleague's change doesn't require a full context switch to the browser.
+
+## 22. Remote - SSH — Develop on a remote machine like it's local
+
+Remote development lets VS Code connect directly to a remote system and run extensions there, instead of copying files back and forth or working around the limits of your local hardware. It's particularly useful for codebases that need access to GPUs, custom kernels, or low-level system features, and it's commonly used for developing directly against Linux-based, production-like environments from a Mac or Windows machine.
+
+## 23. Peacock — Color-code your editor windows
+
+A small quality-of-life tool with a specific use case: Peacock lets you assign a distinct color to each VS Code window, which is genuinely useful if you tend to have several workspaces open at once and need to tell them apart at a glance. If you only ever have one project open, skip it. If you regularly juggle three or four, it earns its spot fast.
+
+## 24. WakaTime — Track your coding time automatically
+
+WakaTime tracks the time you spend programming in the background and gives you insight into which languages you use most, your coding trends over time, and goals you can set for yourself. It's not a productivity tool in the sense of making you code faster — it's a tool for noticing patterns, like realizing you've spent three times as long in CSS files this week as you thought.
+
+## 25. A dependency security scanner (such as Aikido or Snyk)
+
+Extensions in this category give teams early visibility into vulnerable dependencies while a project is still being developed, rather than finding out about a vulnerability after it ships. As supply-chain attacks through compromised packages and even compromised extensions have become more common, a scanner that flags known vulnerabilities in your `package.json` before you install something is a cheap form of insurance. This matters more than it used to — there have been real security incidents tied to VS Code extensions themselves, which is a good reminder to only install tools from verified, actively maintained publishers.
+
+## Build your stack by role, not by the full list
+
+Not every developer needs all 25. A backend developer working mostly in APIs and databases gets little value from Tailwind IntelliSense or Auto Rename Tag. A frontend developer rarely touches Remote - SSH. Instead of installing everything, pick the subset that matches what you actually build day to day.
+
+**If you build frontend interfaces:** Prettier, ESLint, Error Lens, GitLens, an AI assistant, Live Server, Auto Rename Tag, Path Intellisense, Tailwind CSS IntelliSense (if you use it), and HTML CSS Support. This stack covers formatting, structure, and fast visual feedback, which is what frontend work depends on most.
+
+**If you build backend services or APIs:** Prettier, ESLint, GitLens, an AI assistant, Thunder Client or REST Client, Docker, Remote - SSH if you deploy to remote infrastructure, and a security scanner for dependency checks. Backend work leans harder on testing endpoints and managing environments than on visual tools.
+
+**If you work across the whole stack:** take the union of both lists above, but be more disciplined about the cleanup habits below — full-stack setups are the ones that accumulate the most unused extensions over time, simply because there's a plausible reason to install almost anything.
+
+**If you're new to VS Code entirely:** don't install all 25 on day one. Start with Prettier, ESLint, GitLens, and Error Lens. Get comfortable with those four, notice what still feels slow or manual after a week, and add extensions to solve that specific friction instead of guessing in advance.
+
+## Extensions that sound useful but rarely earn their spot
+
+A ranked list is more useful if it also says what to skip. A few categories of extensions show up in almost every "best of" roundup but rarely survive long-term use for most people:
+
+- **Theme and icon packs beyond your first pick.** A file icon theme is genuinely useful for scanning a project tree quickly, but installing three of them and switching every week wastes more time than it saves. Choose one and move on.
+- **Snippet libraries for frameworks you don't use.** Installing a snippet pack "just in case" adds startup weight for a feature you'll never trigger.
+- **Duplicate formatters or linters.** If Prettier and ESLint are already handling formatting and code quality, a second formatter extension usually just fights the first one over control of your files on save.
+- **Heavy all-in-one "productivity suites."** Extensions that bundle a dozen unrelated features into one install are hard to evaluate individually, and if even one part of the bundle is poorly maintained, the whole thing can slow your editor down.
+- **Anything you can't explain the purpose of.** If you installed something during a tutorial six months ago and can't remember what it does, that's a strong signal it's not doing much for you now.
+
+None of this means those categories are worthless — a theme pack can make an editor genuinely nicer to look at, and that matters too. The point is to install them because you chose them, not because a list told you to.
+
+## The five to start with if you only install five
+
+If this whole list feels like too much at once, here is the shortcut. Start with GitLens for Git history, Error Lens for instant inline feedback, ESLint and Prettier together for consistent code, and an AI assistant like GitHub Copilot. Add three to five more extensions after that, based on what your actual stack needs — Tailwind IntelliSense if you use Tailwind, Docker if you use containers, Thunder Client if you work with APIs often.
 
 ## Keep the list intentional
 
-Review extensions every few months. Remove tools you no longer use to keep the editor quick and predictable.
+Review extensions every few months. Remove tools you no longer use to keep the editor quick and predictable. This is not a throwaway line at the end of a listicle — it's the part most developers skip, and it's the part that actually keeps an editor fast a year from now.
+
+A few habits make this easy:
+
+- **Check for updates, not just usage.** Actively maintained extensions tend to keep up with changes to the VS Code API and its performance improvements, while abandoned ones slowly become dead weight.
+- **Watch for overlap.** Running two extensions that do the same job, at the same time, is one of the more common causes of a sluggish editor. If you installed a second linter or a second Git tool while trying something new, remove the one you didn't keep using.
+- **Scope heavy extensions to a single workspace** instead of enabling them globally, especially anything that indexes a large codebase or watches the file system closely.
+- **Exclude noisy folders.** Point extensions away from `node_modules`, build output, and other generated directories so they aren't wasting cycles scanning files you'll never open.
+- **Do a real cleanup pass twice a year.** Open your extensions list, and for anything you can't remember installing or using in the last month, turn it off. You can always turn it back on if you actually need it again.
+
+The goal was never to have the most extensions installed. It's to open the editor, start typing, and have it get out of your way. Twenty-five well-chosen tools that quietly do their job beat fifty half-remembered ones that occasionally get in it.
+
+## A few common questions
+
+**Will installing all 25 slow down VS Code?**
+Probably a little, yes, especially on an older machine. Most of these extensions are light on their own, but they add up, and a few — Docker, Remote - SSH, and AI assistants in particular — do real background work. Start with the core five, add the rest gradually, and keep an eye on startup time as you go. If the editor starts feeling sluggish, that's your cue to check for overlap before you add anything new.
+
+**Do I need both Thunder Client and REST Client?**
+No. They solve the same problem in two different styles — one with a visual interface, one with plain text files. Try both for a week on a real project and keep whichever fits how you think.
+
+**Is GitHub Copilot worth paying for if my company doesn't provide it?**
+That depends on how much of your day involves writing new code versus reading and reviewing existing code. Developers who spend most of their time in unfamiliar codebases tend to get more value from a context-aware chat assistant like Cody or Claude Code than from inline autocomplete alone. Try a free tier or trial before committing to a subscription.
+
+**How do I know if an extension is safe to install?**
+Check the publisher name against the tool's actual website, look at when it was last updated, and skim recent reviews for complaints about performance or unexpected behavior. Extensions with a verified publisher badge and an active GitHub repository are a safer bet than an unfamiliar name with a handful of downloads.
+
+**What's the single extension you'd install first on a brand-new machine?**
+Prettier. Formatting problems are the most common source of noisy pull requests, and it takes less than a minute to set up. Everything else on this list builds on top of a codebase that already looks consistent.
