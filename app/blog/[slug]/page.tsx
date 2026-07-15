@@ -3,13 +3,19 @@ import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { MDXRemote } from 'next-mdx-remote/rsc';
 import { ArticleCard } from '@/components/article-card';
+import { ArticleCover } from '@/components/article-cover';
+import { ArticleInternalLinks } from '@/components/article-internal-links';
 import { ArticleTools } from '@/components/article-tools';
 import { AdSlot } from '@/components/ad-slot';
 import { mdxComponents } from '@/components/mdx';
-import { formatDate, getAllPosts, getPost, headings } from '@/lib/posts';
+import { formatDate, getAllPosts, getPost, getRelatedPosts, headings } from '@/lib/posts';
 import { createArticleMetadata } from '@/lib/seo';
 import { site } from '@/lib/site';
 import { categoryPath, tagPath } from '@/lib/slug';
+import {
+  articleBreadcrumbJsonLd,
+  articleJsonLd,
+} from '@/lib/structured-data';
 
 export function generateStaticParams() {
   return getAllPosts().map((post) => ({ slug: post.slug }));
@@ -32,34 +38,11 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
   if (!post) notFound();
 
   const toc = headings(post.content);
-  const related = getAllPosts()
-    .filter(
-      (item) =>
-        item.slug !== post.slug &&
-        (item.category === post.category || item.tags.some((tag) => post.tags.includes(tag))),
-    )
-    .slice(0, 3);
+  const related = getRelatedPosts(post, 3);
+  const internalLinks = getRelatedPosts(post, 4);
 
   const articleUrl = `${site.url}/blog/${post.slug}`;
-  const schema = {
-    '@context': 'https://schema.org',
-    '@type': 'BlogPosting',
-    headline: post.title,
-    description: post.description,
-    datePublished: post.date,
-    dateModified: post.updated,
-    author: { '@type': 'Person', name: post.author },
-    mainEntityOfPage: articleUrl,
-    image: post.coverImage.startsWith('/') ? `${site.url}${post.coverImage}` : site.images.og,
-  };
-
-  const coverStyle = post.coverImage.startsWith('/')
-    ? {
-        backgroundImage: `url(${post.coverImage})`,
-        backgroundSize: 'cover' as const,
-        backgroundPosition: 'center' as const,
-      }
-    : { background: post.coverImage };
+  const schemas = [articleJsonLd(post), articleBreadcrumbJsonLd(post)];
 
   return (
     <>
@@ -68,13 +51,13 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
       <article>
         <div className="container-page py-8 sm:py-10">
           <div className="mx-auto max-w-3xl min-w-0">
-            <nav className="break-words text-sm text-zinc-500">
+            <nav className="break-words text-sm text-zinc-500" aria-label="Breadcrumb">
               <Link href="/">Home</Link> / <Link href="/blog">Blog</Link> /{' '}
               <Link href={categoryPath(post.category)}>{post.category}</Link>
             </nav>
 
             <div className="mt-7 inline-block max-w-full rounded-full bg-zinc-100 px-3 py-1 text-xs font-bold text-zinc-800 dark:bg-zinc-900 dark:text-zinc-200">
-              {post.category}
+              <Link href={categoryPath(post.category)}>{post.category}</Link>
             </div>
 
             <h1 className="mt-4 break-words text-3xl font-black tracking-[-.05em] sm:text-4xl lg:text-6xl">
@@ -87,7 +70,7 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
             <div className="mt-7 flex flex-wrap items-center gap-3 text-sm text-zinc-500">
               <span className="font-semibold text-zinc-800 dark:text-zinc-200">{post.author}</span>
               <span>·</span>
-              <time>{formatDate(post.date)}</time>
+              <time dateTime={post.date}>{formatDate(post.date)}</time>
               <span>·</span>
               <span>{post.readingTime}</span>
               {post.updated !== post.date && (
@@ -99,10 +82,7 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
             </div>
           </div>
 
-          <div
-            className="mx-auto mt-8 h-48 max-w-5xl rounded-2xl bg-gradient-to-br from-black to-zinc-500 sm:mt-10 sm:h-64 sm:rounded-3xl lg:h-96"
-            style={coverStyle}
-          />
+          <ArticleCover coverImage={post.coverImage} title={post.title} />
         </div>
 
         <AdSlot variant="banner" label="Advertisement" />
@@ -124,6 +104,7 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
           </aside>
 
           <div className="prose-blog min-w-0 max-w-full">
+            <ArticleInternalLinks related={internalLinks} />
             <MDXRemote source={post.content} components={mdxComponents} />
             <AdSlot variant="inArticle" label="Advertisement" />
             <div className="mt-10 flex flex-wrap gap-2">
@@ -150,7 +131,10 @@ export default async function Article({ params }: { params: Promise<{ slug: stri
         </div>
       </section>
 
-      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(schema) }} />
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(schemas) }}
+      />
     </>
   );
 }

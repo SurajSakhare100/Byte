@@ -13,12 +13,204 @@ featured: false
 draft: false
 ---
 
-An API exposes data and actions through predictable HTTP endpoints. Express provides a small routing layer on top of Node.js.
+# How to Build Your First REST API with Node.js and Express
+
+If you've spent any time around backend development, you've probably heard the term REST API thrown around so often that it starts to lose meaning. Everyone assumes you already know what it is, and half the tutorials online jump straight into code without explaining why any of it works the way it does. So before we touch a single line of Express, let's slow down for a second.
+
+An API is really just a contract. It's a way for one program to ask another program for something — data, an action, a change — without needing to know how that something happens under the hood. A REST API does this over plain HTTP, using URLs to represent resources (like `/users` or `/orders/42`) and HTTP methods to represent what you want to do with them (`GET` to read, `POST` to create, `PUT` or `PATCH` to update, `DELETE` to remove).
+
+That's it. That's the whole idea. Everything else — Express, middleware, status codes, routing — exists to make that contract easier to build and easier to maintain.
+
+## Why Express, and not just raw Node.js
+
+Node.js on its own can absolutely handle HTTP requests. You can spin up a server with the built-in `http` module and start responding to requests in a few lines. But you'll quickly notice that raw Node makes you write a lot of boilerplate — parsing URLs, checking methods, reading request bodies, setting headers manually. None of that is hard, exactly, it's just repetitive, and repetitive code is where bugs like to hide.
+
+Express takes that repetitive layer and wraps it in something much more pleasant to work with. It gives you routing, a chainable middleware system, and a bunch of small conveniences (like automatic JSON parsing) that save you from reinventing the same wheel in every project. It's not magic, and it's not trying to be a framework in the Rails or Django sense. It's a thin layer, and that's exactly why it's stuck around for over a decade in the Node ecosystem.
+
+## Setting up the project
+
+Let's start from scratch. Create a folder, initialize it, and install Express.
+
+```bash
+mkdir bookshelf-api
+cd bookshelf-api
+npm init -y
+npm install express
+```
+
+That `npm init -y` gives you a `package.json` with sensible defaults, and installing Express adds it to your dependencies. From here, create an `index.js` file — this will be the entry point of your server.
+
+```js
+const express = require('express');
+const app = express();
+
+app.use(express.json());
+
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`Server running on http://localhost:${PORT}`);
+});
+```
+
+Run it with `node index.js`, and you should see the console log confirming it's alive. Nothing happens yet if you visit the URL in a browser, because we haven't defined any routes. Let's fix that.
 
 ## Create a route
 
-Start with a `GET` route that returns JSON. Keep route handlers focused, then move larger business rules into separate modules.
+An API's job is to expose data and actions through predictable HTTP endpoints. The simplest place to start is a `GET` route that returns some JSON.
+
+```js
+let books = [
+  { id: 1, title: 'The Pragmatic Programmer', author: 'Andy Hunt' },
+  { id: 2, title: 'Clean Code', author: 'Robert C. Martin' },
+];
+
+app.get('/books', (req, res) => {
+  res.json(books);
+});
+```
+
+Restart the server, visit `http://localhost:3000/books`, and you'll get back a JSON array. That's your first working endpoint. It doesn't feel like much, but this pattern — a route, a handler function, a response — is the backbone of everything you'll build in Express from here on out.
+
+Now let's add a route to fetch a single book by its ID.
+
+```js
+app.get('/books/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const book = books.find((b) => b.id === id);
+
+  if (!book) {
+    return res.status(404).json({ error: 'Book not found' });
+  }
+
+  res.json(book);
+});
+```
+
+Notice the `:id` in the path. That's a route parameter, and Express automatically makes it available on `req.params.id`. This is one of those small conveniences that makes Express worth using — you're not manually parsing the URL string yourself.
+
+Keep route handlers focused on their one job: take a request, figure out what's being asked, and send a response. Once your logic starts growing — validation rules, database queries, business decisions — that's your cue to move it out of the route handler and into a separate module. A route file should read almost like a table of contents, not a wall of logic.
+
+## Handling POST requests and reading the body
+
+Reading data is only half the story. Most real APIs also need to accept data — creating a new resource, submitting a form, updating a record. That's where `POST` comes in.
+
+```js
+app.post('/books', (req, res) => {
+  const { title, author } = req.body;
+
+  if (!title || !author) {
+    return res.status(400).json({ error: 'Title and author are required' });
+  }
+
+  const newBook = {
+    id: books.length + 1,
+    title,
+    author,
+  };
+
+  books.push(newBook);
+  res.status(201).json(newBook);
+});
+```
+
+This is where `express.json()` middleware, which we added earlier, actually earns its keep. Without it, `req.body` would be `undefined`, and you'd have to parse the raw request stream yourself. With it, Express reads the incoming JSON payload and attaches the parsed object directly to `req.body`, ready to use.
 
 ## Return useful status codes
 
-Use `200` for success, `201` for creation, `400` for invalid input, and `404` when a resource does not exist.
+A lot of beginner APIs return `200 OK` for everything, even when something goes wrong. That's technically working code, but it's not a good API. Status codes exist because they let the client understand what happened without needing to parse the response body first.
+
+A few you'll use constantly:
+
+- `200` — the request succeeded, and you're returning data.
+- `201` — something new was created (typically after a `POST`).
+- `400` — the client sent invalid or incomplete input.
+- `404` — the requested resource doesn't exist.
+- `500` — something broke on the server, and it's not the client's fault.
+
+Getting into the habit of choosing the right status code early on will save you a lot of confusion later, both for you and for anyone else consuming your API. Tools like Postman, or frontend code written by someone else on your team, will often branch their logic based on status codes alone.
+
+## Updating and deleting resources
+
+Rounding out the basic CRUD (create, read, update, delete) pattern, here's how updating and deleting typically look.
+
+```js
+app.put('/books/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const book = books.find((b) => b.id === id);
+
+  if (!book) {
+    return res.status(404).json({ error: 'Book not found' });
+  }
+
+  const { title, author } = req.body;
+  if (title) book.title = title;
+  if (author) book.author = author;
+
+  res.json(book);
+});
+
+app.delete('/books/:id', (req, res) => {
+  const id = Number(req.params.id);
+  const index = books.findIndex((b) => b.id === id);
+
+  if (index === -1) {
+    return res.status(404).json({ error: 'Book not found' });
+  }
+
+  books.splice(index, 1);
+  res.status(204).send();
+});
+```
+
+A quick note on that `204` — it means "success, but there's nothing to send back," which is the conventional response for a successful delete. You don't need to return the deleted object; the client already knows what it asked to remove.
+
+## Organizing things as the project grows
+
+Right now, everything lives in one `index.js` file, and for a small demo, that's fine. But the moment you add a second resource — say, `authors` alongside `books` — that file starts getting messy fast. A common pattern is to split routes into their own files using Express's `Router`.
+
+```js
+// routes/books.js
+const express = require('express');
+const router = express.Router();
+
+router.get('/', (req, res) => {
+  res.json(books);
+});
+
+// ...other book routes
+
+module.exports = router;
+```
+
+```js
+// index.js
+const booksRouter = require('./routes/books');
+app.use('/books', booksRouter);
+```
+
+This does two things for you. First, it keeps each resource's logic in its own file, so you're not scrolling through hundreds of lines to find one route. Second, it separates the "what path does this belong under" decision from the route definitions themselves, which makes it much easier to restructure your API later without touching the actual logic.
+
+## Middleware: the part that ties it all together
+
+You've already used middleware without necessarily thinking of it that way — `express.json()` is middleware. In Express, middleware is just a function that runs between the incoming request and your final route handler. It can inspect the request, modify it, reject it early, or just pass it along.
+
+A simple logging middleware looks like this:
+
+```js
+app.use((req, res, next) => {
+  console.log(`${req.method} ${req.url}`);
+  next();
+});
+```
+
+That `next()` call is important — it tells Express to move on to the next middleware or route handler. Forget to call it, and the request will just hang there, waiting forever.
+
+Middleware is also where you'd typically handle things like authentication checks, request validation, or centralized error handling. Once you get comfortable with routes, middleware is the next concept worth understanding deeply, because it's what makes Express flexible enough to handle real production concerns without turning your route files into a mess.
+
+## Where to go from here
+
+At this point, you've got a working REST API with routes for reading, creating, updating, and deleting a resource, proper status codes, and a rough idea of how to keep things organized as the project grows. The in-memory array of books obviously won't survive a server restart, so the natural next step is connecting a real database — MongoDB with Mongoose, or PostgreSQL with something like Prisma, are both common choices in the Node ecosystem.
+
+Beyond that, you'll want to look into input validation libraries (Zod or Joi are popular), centralized error handling middleware so you're not repeating `try/catch` blocks everywhere, and eventually some form of authentication if your API needs to know who's making the request.
+
+None of that changes the core idea we started with, though. An API is a contract, expressed through URLs and HTTP methods. Express just gives you a clean way to write that contract in code. Everything else you add on top — databases, validation, auth — is just supporting infrastructure around that same basic idea.

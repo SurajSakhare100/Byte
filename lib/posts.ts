@@ -3,7 +3,8 @@ import path from 'node:path';
 import matter from 'gray-matter';
 import readingTime from 'reading-time';
 import type { Post } from './post-types';
-import { slugify } from './slug';
+import { slugify, tagPath, categoryPath } from './slug';
+import { site } from './site';
 
 const contentDirectory = path.join(process.cwd(), 'content');
 function walk(dir: string): string[] {
@@ -60,6 +61,32 @@ export function findTagBySlug(tagSlug: string) {
 
 export function findCategoryBySlug(categorySlug: string) {
   return getCategories().find((category) => slugify(category) === categorySlug);
+}
+
+export function getRelatedPosts(post: Post, limit = 3) {
+  return getAllPosts()
+    .filter(
+      (item) =>
+        item.slug !== post.slug &&
+        (item.category === post.category || item.tags.some((tag) => post.tags.includes(tag))),
+    )
+    .slice(0, limit);
+}
+
+export function getAllIndexableUrls(): string[] {
+  const posts = getAllPosts();
+  const tags = getTags();
+  const categories = getCategories();
+
+  return [
+    site.url,
+    `${site.url}/blog`,
+    `${site.url}/categories`,
+    `${site.url}/search`,
+    ...posts.map((post) => `${site.url}/blog/${post.slug}`),
+    ...tags.map((tag) => `${site.url}${tagPath(tag)}`),
+    ...categories.map((category) => `${site.url}${categoryPath(category)}`),
+  ];
 }
 export function formatDate(date: string) {
   return new Intl.DateTimeFormat('en', { month: 'short', day: 'numeric', year: 'numeric' }).format(

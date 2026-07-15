@@ -1,6 +1,8 @@
 import type { Metadata } from 'next';
 import type { Post } from '@/lib/post-types';
 import { site } from '@/lib/site';
+import { categoryPath, tagPath } from '@/lib/slug';
+import { toIsoDate } from '@/lib/structured-data';
 
 const defaultOgImage = {
   url: site.images.og,
@@ -117,28 +119,29 @@ export function createArticleMetadata(
     'title' | 'description' | 'slug' | 'date' | 'updated' | 'author' | 'category' | 'tags' | 'coverImage'
   >,
 ): Metadata {
-  const path = `/blog/${post.slug}`;
-  const image = post.coverImage.startsWith('/') ? post.coverImage : site.images.og;
+  const canonical = `${site.url}/blog/${post.slug}`;
+  const imagePath = post.coverImage.startsWith('/') ? post.coverImage : site.images.og;
+  const imageUrl = imagePath.startsWith('http') ? imagePath : `${site.url}${imagePath}`;
 
   return {
     title: post.title,
     description: post.description,
     authors: [{ name: post.author }],
     keywords: post.tags,
-    alternates: { canonical: path },
+    alternates: { canonical },
     openGraph: {
       type: 'article',
-      url: path,
+      url: canonical,
       siteName: site.name,
       locale: site.locale,
       title: post.title,
       description: post.description,
-      publishedTime: post.date,
-      modifiedTime: post.updated,
+      publishedTime: toIsoDate(post.date),
+      modifiedTime: toIsoDate(post.updated),
       authors: [post.author],
       section: post.category,
       tags: post.tags,
-      images: [{ url: image, alt: post.title }],
+      images: [{ url: imageUrl, alt: post.title }],
     },
     twitter: {
       card: 'summary_large_image',
@@ -146,7 +149,23 @@ export function createArticleMetadata(
       creator: site.social.twitter,
       title: post.title,
       description: post.description,
-      images: [image],
+      images: [imageUrl],
     },
   };
+}
+
+export function createTagMetadata(tag: string, articleCount: number): Metadata {
+  const path = tagPath(tag);
+  const title = `${tag} articles`;
+  const description = `Browse ${articleCount} technical article${articleCount === 1 ? '' : 's'} tagged with ${tag} on ${site.name}.`;
+
+  return createPageMetadata({ title, description, path });
+}
+
+export function createCategoryMetadata(category: string, articleCount: number): Metadata {
+  const path = categoryPath(category);
+  const title = `${category} articles`;
+  const description = `Explore ${articleCount} ${category} tutorial${articleCount === 1 ? '' : 's'} and guides on ${site.name}.`;
+
+  return createPageMetadata({ title, description, path });
 }

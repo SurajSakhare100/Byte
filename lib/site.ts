@@ -28,6 +28,13 @@ export const site = {
   ],
   social: {
     twitter: '@byte',
+    sameAs: [
+      'https://byte.surajx.in',
+      'https://x.com/byte',
+    ],
+  },
+  indexNow: {
+    key: 'byteindexnow20269d7f2a6b',
   },
   images: {
     og: '/byte.png',

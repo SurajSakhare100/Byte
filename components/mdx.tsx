@@ -22,6 +22,14 @@ function YouTubeEmbed({ id }: { id: string }) {
 }
 
 export const mdxComponents = {
+  h1: ({ children, ...props }: ComponentPropsWithoutRef<'h1'>) => {
+    const text = String(children);
+    return (
+      <h2 id={slugify(text)} {...props}>
+        {children}
+      </h2>
+    );
+  },
   h2: ({ children, ...props }: ComponentPropsWithoutRef<'h2'>) => {
     const text = String(children);
     return (
