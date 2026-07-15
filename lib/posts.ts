@@ -63,14 +63,30 @@ export function findCategoryBySlug(categorySlug: string) {
   return getCategories().find((category) => slugify(category) === categorySlug);
 }
 
-export function getRelatedPosts(post: Post, limit = 3) {
+export function getRelatedPosts(post: Post, limit = 3): Post[] {
   return getAllPosts()
-    .filter(
-      (item) =>
-        item.slug !== post.slug &&
-        (item.category === post.category || item.tags.some((tag) => post.tags.includes(tag))),
-    )
-    .slice(0, limit);
+    .filter((item) => item.slug !== post.slug)
+    .map((item) => {
+      let score = 0;
+
+      // Same category is more important
+      if (item.category === post.category) {
+        score += 5;
+      }
+
+      // Add points for each shared tag
+      const sharedTags = item.tags.filter((tag) =>
+        post.tags.includes(tag)
+      ).length;
+
+      score += sharedTags * 2;
+
+      return { item, score };
+    })
+    .filter(({ score }) => score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit)
+    .map(({ item }) => item);
 }
 
 export function getAllIndexableUrls(): string[] {

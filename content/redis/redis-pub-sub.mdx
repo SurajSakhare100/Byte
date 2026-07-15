@@ -1,0 +1,204 @@
+---
+title: Redis Pub/Sub Explained - Build Real-Time Apps with Redis
+description: Understand Redis Pub/Sub internals and use it to build real-time features like chat, notifications, and live updates.
+slug: redis-pubsub-explained
+date: 2026-07-15
+updated: 2026-07-15
+author: byte team
+category: Redis
+tags: [Redis, Pub/Sub, DevOps, WebSockets]
+coverImage: /assets/articles/redis/redis-pubsub-cover.png
+readingTime: 8 min read
+featured: false
+draft: false
+---
+
+Real-time features — chat, live notifications, presence indicators, live dashboards — all need one thing in common: a way to push a message from one part of the system to another, instantly, without polling. Redis Pub/Sub gives you exactly that, with almost no setup. This article covers how it works internally, how to use it, and where it breaks down.
+
+## What Pub/Sub Actually Is
+
+Pub/Sub is a messaging pattern with two roles:
+
+- **Publisher** — sends a message to a named channel
+- **Subscriber** — listens on that channel and receives every message sent to it
+
+Redis sits in the middle as the broker. It doesn't store messages, doesn't queue them, and doesn't know or care who's listening. If a message is published and nobody is subscribed at that moment, it's gone — there's no replay, no persistence, no "catch up" mechanic.
+
+This makes Pub/Sub fundamentally different from a queue. A queue holds work until a consumer picks it up. Pub/Sub is closer to a live radio broadcast — if your radio is off when something airs, you missed it.
+
+## Basic Usage
+
+Open two terminals (or two `redis-cli` sessions) to see it live.
+
+**Terminal 1 — subscribe:**
+```bash
+redis-cli
+SUBSCRIBE notifications
+```
+
+**Terminal 2 — publish:**
+```bash
+redis-cli
+PUBLISH notifications "New order received"
+```
+
+The subscriber terminal immediately prints the message. That's the entire mechanic — no configuration, no setup beyond a running Redis instance.
+
+## Pattern Matching with PSUBSCRIBE
+
+Instead of subscribing to one exact channel, you can subscribe to a pattern using glob-style wildcards.
+
+```bash
+PSUBSCRIBE news.*
+```
+
+This matches `news.sports`, `news.tech`, `news.weather` — anything published to a channel starting with `news.`. Useful when channels are dynamically named, e.g. `room.123`, `room.456` for per-room chat.
+
+```bash
+PUBLISH room.123 "User joined the room"
+```
+
+A client subscribed to `room.*` receives it, along with which exact channel it came from — so you can route the message correctly on the receiving end.
+
+![Redis Pub/Sub architecture diagram](/assets/articles/redis/redis-pubsub-architecture.png)
+
+## Building a Real-Time Chat Feature (Node.js Example)
+
+Here's the shape of a typical setup using `ioredis`, paired with WebSockets (via `ws` or Socket.IO) to push messages to browsers.
+
+```js
+// publisher.js — call this wherever a chat message is created
+import Redis from 'ioredis';
+const redis = new Redis();
+
+export async function publishMessage(roomId, message) {
+  await redis.publish(`room.${roomId}`, JSON.stringify(message));
+}
+```
+
+```js
+// subscriber.js — runs once per server instance, fans out to connected sockets
+import Redis from 'ioredis';
+import { wss } from './websocket-server.js';
+
+const subscriber = new Redis();
+subscriber.psubscribe('room.*');
+
+subscriber.on('pmessage', (pattern, channel, message) => {
+  const roomId = channel.split('.')[1];
+  const payload = JSON.parse(message);
+
+  wss.clients.forEach((client) => {
+    if (client.roomId === roomId && client.readyState === client.OPEN) {
+      client.send(JSON.stringify(payload));
+    }
+  });
+});
+```
+
+Note the split: Redis Pub/Sub connects your **server instances** to each other; WebSockets connect your **server to the browser**. This separation is exactly why Pub/Sub matters once you scale past one server process.
+
+## Why You Need This the Moment You Scale Horizontally
+
+With a single server process, you could just hold WebSocket connections in memory and broadcast directly — no Redis needed. The problem appears the moment you run more than one instance behind a load balancer.
+
+```
+Browser A ──ws──> Server 1
+Browser B ──ws──> Server 2
+```
+
+If Browser A sends a chat message, Server 1 has no way to reach Browser B — that socket lives on Server 2's memory, not Server 1's. Redis Pub/Sub solves this: every server instance subscribes to the relevant channels, so a publish from any one instance reaches all instances, which then forward to whichever sockets they're holding locally.
+
+![Redis Pub/Sub scaling across multiple server instances](/assets/articles/redis/redis-pubsub-server.png)
+
+This exact pattern is what the [`socket.io-redis` adapter](https://socket.io/docs/v4/redis-adapter/) automates if you're using Socket.IO instead of raw WebSockets.
+
+## Common Real-World Use Cases
+
+**Live notifications**
+```js
+await redis.publish(`user.${userId}.notifications`, JSON.stringify({
+  type: 'comment',
+  message: 'Someone replied to your post',
+}));
+```
+
+**Presence / typing indicators**
+```js
+await redis.publish(`room.${roomId}.typing`, JSON.stringify({ userId, isTyping: true }));
+```
+
+**Live dashboard metrics**
+```js
+await redis.publish('metrics.orders', JSON.stringify({ count: 42, timestamp: Date.now() }));
+```
+
+**Cache invalidation across instances**
+```js
+await redis.publish('cache.invalidate', 'product:123');
+// every instance listens and evicts product:123 from its local cache
+```
+
+## Limitations You Need to Know Before Relying on It
+
+**No message persistence.** If a subscriber disconnects — deploy, crash, network blip — every message published during that gap is lost permanently. There's no offset, no "resume from where I left off."
+
+**No delivery guarantees.** Pub/Sub is fire-and-forget. Redis doesn't retry, doesn't acknowledge, and doesn't track whether a subscriber actually processed a message.
+
+**No consumer groups.** You can't have multiple workers split the load of processing messages — every subscriber gets every message. There's no concept of "only one of you should handle this."
+
+**Doesn't survive Redis Cluster resharding cleanly.** In Redis Cluster, `PUBLISH` propagates to all nodes, but pattern-matching and channel semantics need care — check the Cluster docs before relying on Pub/Sub across a sharded deployment.
+
+![Redis Pub/Sub versus Streams delivery model](/assets/articles/redis/redis-pubsub-streams.png)
+
+## When to Use Streams Instead
+
+If you need any of the following, reach for **Redis Streams** (`XADD`/`XREAD`/consumer groups) instead of Pub/Sub:
+
+- Messages must survive a subscriber being offline
+- You need to replay history from a specific point
+- You need multiple workers splitting a stream of events without duplicate processing
+- You need acknowledgment / at-least-once delivery guarantees
+
+<table>
+  <thead>
+    <tr>
+      <th>Need</th>
+      <th>Pub/Sub</th>
+      <th>Streams</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td>Real-time fan-out to many listeners</td>
+      <td>✅</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Message durability</td>
+      <td>❌</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Replay from history</td>
+      <td>❌</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Consumer groups (load balancing)</td>
+      <td>❌</td>
+      <td>✅</td>
+    </tr>
+    <tr>
+      <td>Simplicity / lowest latency</td>
+      <td>✅</td>
+      <td>slightly more overhead</td>
+    </tr>
+  </tbody>
+</table>
+
+A common production pattern: use **Streams** for anything that must not be lost (order events, audit logs), and **Pub/Sub** for anything ephemeral by nature (typing indicators, live cursor positions, transient UI updates) where losing a message just means the next one supersedes it anyway.
+
+## Wrapping Up
+
+Redis Pub/Sub is the simplest real-time messaging primitive you'll find — a few commands, no persistence layer to manage, and it solves the exact problem of connecting multiple server instances so WebSocket broadcasts work correctly at scale. Its tradeoff is durability: know upfront that anything published while no one's listening is gone, and reach for Streams the moment "at least once delivery" actually matters for what you're building.

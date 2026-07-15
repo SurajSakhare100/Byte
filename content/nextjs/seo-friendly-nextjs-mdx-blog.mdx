@@ -298,7 +298,7 @@ None of the metadata or structured data work matters if the page itself is unple
 
 Code blocks should be syntax highlighted server-side rather than shipping a client-side highlighting library that has to parse and style code after the page loads — `rehype-pretty-code` or `shiki` can do this at build time, so the highlighted code is part of the static HTML from the start.
 
-Images inside post content should go through `next/image`, not a raw `<img>` tag, even inside MDX. This is one of the easier things to miss, since it's tempting to just write `![alt text](/image.png)` in Markdown and move on. A custom MDX component that maps the Markdown image syntax to `next/image` under the hood keeps the lazy-loading and responsive sizing benefits without changing how anyone writes content.
+Images inside post content should go through `next/image`, not a raw `<img>` tag, even inside MDX. This is one of the easier things to miss, since it's tempting to just write `![alt text](/icon.png)` in Markdown and move on. A custom MDX component that maps the Markdown image syntax to `next/image` under the hood keeps the lazy-loading and responsive sizing benefits without changing how anyone writes content.
 
 Heading structure should stay consistent — one `h1` per page for the title, and headings inside the body starting at `h2` and nesting logically from there. This helps both accessibility tools and search engines understand the outline of a page, and it's an easy thing to get wrong when Markdown makes it just as easy to write `#`, `##`, or `###` without thinking about the actual hierarchy.
 
