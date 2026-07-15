@@ -13,12 +13,99 @@ featured: false
 draft: false
 ---
 
-The best first contribution is often documentation, a reproduction, or a small bug fix—not a dramatic new feature.
+# How to Make Your First Open Source Contribution on GitHub
 
-## Read contribution guidelines
+Most people put off their first open source contribution for way longer than they need to. There's this idea floating around that you need to be some kind of expert before you're allowed to touch a real project — that your first pull request has to prove something. It doesn't. The best first contribution is often something quiet: fixing a typo in the docs, cleaning up an unclear error message, or reproducing a bug someone else reported. Not a dramatic new feature. Nobody's first PR needs to be impressive. It just needs to be useful, and it needs to get merged.
 
-Projects explain setup, coding standards, and how maintainers prefer issues and pull requests.
+That second part matters more than people realize. A contribution that never gets merged, no matter how clever, doesn't teach you much about how open source actually works. A small, boring fix that goes through review and lands in the main branch teaches you the entire process — and that process is the actual skill you're trying to build.
+
+## Why the first contribution is the hardest one
+
+There's a strange kind of anxiety around opening your first pull request on someone else's repository. You're not just writing code anymore; you're stepping into a project with its own history, its own conventions, and often its own community norms that you can't see just by glancing at the README. It's easy to freeze up wondering if your change is "good enough" or if you're about to embarrass yourself in front of strangers.
+
+Here's the thing that helps: maintainers of active open source projects want new contributors. A steady stream of small, well-made contributions is a sign of a healthy project. Most maintainers have seen hundreds of first-time PRs, and they're far more patient with them than you'd expect. Your job isn't to be perfect. It's to show that you took the time to understand how the project wants to be contributed to.
+
+## Finding a project worth your time
+
+Not every repository on GitHub is a good place to start. Some projects are abandoned, some are so large and specialized that even reading the code takes weeks, and some have maintainers who are, frankly, burned out and unresponsive. Before you write a single line, spend some time evaluating whether a project is actually welcoming to new contributors.
+
+A few signals worth checking:
+
+- **Recent activity.** Look at the commit history and issue tracker. If the last commit was eighteen months ago, that's not necessarily a dead project, but it does mean your PR might sit unreviewed for a long time.
+- **A `CONTRIBUTING.md` file.** Its presence alone tells you the maintainers have thought about onboarding new people. Its absence doesn't disqualify a project, but it does mean you'll need to infer conventions from the code itself.
+- **Labeled issues.** Many projects tag beginner-friendly issues with labels like `good first issue` or `help wanted`. GitHub even has a dedicated search filter for this across all public repositories, which is a genuinely useful way to browse options instead of guessing.
+- **Response time on existing PRs.** Scroll through the pull requests tab. Are contributors getting feedback within days, or are PRs sitting open for months with no comments? This tells you a lot about what to expect.
+
+It also helps to pick something you already use. If you've hit a confusing part of a library's documentation as a user, you're in a great position to fix that same confusion for the next person — you understand the problem firsthand, which is worth more than it sounds.
+
+## Read the contribution guidelines before you write anything
+
+This step gets skipped constantly, and it's the single biggest reason first-time PRs get rejected or sent back for rework. Projects that have a `CONTRIBUTING.md` file are explaining, often in detail, exactly what they expect: how to set up the local development environment, what coding standards or linters they use, how commit messages should be formatted, and how they prefer issues and pull requests to be structured.
+
+Skipping this file and jumping straight to code is like walking into someone's house and rearranging their furniture before saying hello. It's not malicious, but it creates friction that didn't need to exist. Five or ten minutes reading this document will save you multiple rounds of review comments later.
+
+Some things to specifically look for:
+
+- **Local setup instructions.** Most projects specify exact commands for installing dependencies and running tests. Follow these precisely rather than assuming your usual workflow will work identically.
+- **Branching conventions.** Some projects want you to branch off `main`, others use `develop` as the base. Get this wrong and your PR might target the wrong branch entirely.
+- **Code style rules.** Many repositories run a linter or formatter (ESLint, Prettier, Black, whatever fits the language) as part of their CI checks. Running these locally before you push saves you from a wave of automated failure comments.
+- **Testing expectations.** Does the project expect new tests for every change, or only for bug fixes? Is there a minimum coverage threshold enforced by CI?
+
+## Picking your first issue
+
+Once you've settled on a project, look through open issues rather than inventing your own idea for what to fix. Contributing a fix for something the maintainers already know about and want addressed is a much smoother path than showing up with an unsolicited feature no one asked for.
+
+Documentation issues are a genuinely great entry point, and they're consistently underrated. Fixing a broken code example, clarifying an ambiguous sentence, or adding a missing step to a setup guide are all real contributions that make the project measurably better — and they let you focus entirely on the contribution process itself without also having to reason through complex application logic at the same time.
+
+Bug reproductions are another solid option. If someone has filed an issue describing unexpected behavior but hasn't included clear steps to reproduce it, you can add real value just by confirming the bug, documenting the exact steps, and noting your environment details. This doesn't even require writing a fix — it moves the issue forward and shows maintainers you can communicate clearly, which builds trust for future contributions.
+
+If you do want to fix actual code, look for issues explicitly labeled for beginners, and comment on the issue before you start working. Something as simple as "I'd like to take this on" prevents two people from duplicating effort, and it gives the maintainer a chance to point out anything you should know before you dive in.
+
+## Setting up your local environment
+
+Once you've picked an issue, fork the repository into your own GitHub account and clone your fork locally.
+
+```bash
+git clone https://github.com/your-username/project-name.git
+cd project-name
+```
+
+Add the original repository as a remote, usually named `upstream`, so you can keep your fork in sync as the project evolves.
+
+```bash
+git remote add upstream https://github.com/original-owner/project-name.git
+```
+
+Create a new branch for your change rather than working directly on `main`. A descriptive branch name helps both you and the reviewer understand the change at a glance.
+
+```bash
+git checkout -b fix/typo-in-installation-guide
+```
+
+Follow whatever setup steps the `CONTRIBUTING.md` file laid out — installing dependencies, running the project locally, running the existing test suite once before you change anything, just to confirm your environment is working correctly.
 
 ## Keep your pull request focused
 
-Describe the problem, the solution, and how you tested it. Small changes are easier to review.
+This is where a lot of new contributors accidentally sabotage themselves. It's tempting, once you're in the codebase, to also fix that other small thing you noticed nearby, or rename a variable that's bothered you, or reformat a file that wasn't touching your actual change. Resist this urge. A focused pull request that does one thing is dramatically easier to review than one that bundles several unrelated changes together.
+
+Reviewers are volunteering their time, often across many pull requests from many contributors. A PR that changes twelve files across three unrelated concerns forces them to context-switch repeatedly just to evaluate whether each part is correct. A PR that changes two files to fix one described problem can usually be reviewed and merged in minutes.
+
+When you write your PR description, structure it around three simple things: what the problem was, what you changed to solve it, and how you verified the fix works. You don't need elaborate prose here. Something like this is usually enough:
+
+> **Problem:** The installation guide referenced an outdated command that no longer works with the current CLI version.
+> **Solution:** Updated the command to match the current CLI syntax and verified it against the latest release.
+> **Testing:** Ran the updated command locally following the exact steps in the guide and confirmed it completes without error.
+
+This format gives the reviewer everything they need without making them dig through the diff to understand your intent.
+
+## After you submit
+
+Push your branch and open the pull request against the original repository, not your fork.
+
+```bash
+git push origin fix/typo-in-installation-guide
+```
+
+From there, patience matters. Maintainers are often reviewing contributions in their spare time, so a few days or even a couple of weeks of silence is normal, not a sign that something went wrong. If a reviewer requests changes, treat it as ordinary part of the process rather than criticism of your ability. Make the requested edits, push them to the same branch, and the pull request updates automatically.
+
+Once it's merged, you'll have a small, real, permanent mark on a project other people use. That's genuinely worth something, and it's a far better foundation than waiting around for the "right" project or the "right" feature to attempt something bigger. The habit of contributing, reviewing feedback, and iterating is the actual skill. Everything after your first merged PR gets easier, because you'll already know what the process feels like from the inside.

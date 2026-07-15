@@ -4,7 +4,7 @@ description: Learn how to choose, compose, and reason about React Hooks without 
 slug: react-hooks-guide
 date: 2025-01-15
 updated: 2025-02-03
-author: Maya Chen
+author: Byte Team
 category: React
 tags: [React, Hooks, JavaScript]
 coverImage: /assets/articles/react/react-hooks-guide-cover.webp
@@ -13,7 +13,9 @@ featured: true
 draft: false
 ---
 
-React Hooks are functions that let components remember information and interact with the outside world. They make a component's behavior easier to package and reuse.
+React Hooks are functions that let components remember information and interact with the outside world. They make a component's behavior easier to package and reuse. That's the one-sentence pitch you'll find in most intros, and it's accurate, but it doesn't really tell you how to use them well. The API surface is small — a handful of functions, most of which you'll use constantly — but the judgment calls around them are where people actually get stuck. Not "what does `useState` do," but "should this be state at all," or "does this really need an effect."
+
+This guide is less about the mechanics of each Hook and more about that second layer: how to reason about which one fits, and how to keep a component readable as it grows past its first few lines.
 
 ## Start with state
 
@@ -23,11 +25,67 @@ Use `useState` for information that changes over time and should cause the UI to
 const [isOpen, setIsOpen] = useState(false);
 ```
 
+That single line covers a huge share of what components actually need. A toggle, a selected tab, the text in a controlled input — all of it is the same shape: a value, and a way to change it that tells React to re-render.
+
+The place this goes wrong is almost never in the syntax. It's in scope. New Hooks users tend to reach for one big state object per component — a single `formState` or `uiState` blob holding everything — because it feels like it mirrors "the component's data." In practice it does the opposite. Updating one field means spreading the rest of the object every time, and it becomes unclear which piece of state actually triggered a given re-render or bug.
+
+```tsx
+// Every update needs to carry the rest of the object along
+const [formState, setFormState] = useState({
+  name: '',
+  email: '',
+  isSubmitting: false,
+  error: null,
+});
+
+setFormState((prev) => ({ ...prev, name: 'New name' }));
+```
+
+```tsx
+// Each concern is independent and easy to trace
+const [name, setName] = useState('');
+const [email, setEmail] = useState('');
+const [isSubmitting, setIsSubmitting] = useState(false);
+const [error, setError] = useState<string | null>(null);
+```
+
+The second version is more lines, and that trade sometimes feels wrong at first — fewer `useState` calls looks tidier. But each variable now has one job, and a reader scanning the component top to bottom can tell at a glance what changes independently. Grouping only makes sense when values genuinely change together, like the x and y of a single coordinate.
+
 ## Effects synchronize with the world
 
 `useEffect` is for synchronizing with something outside React: a browser API, a subscription, or a network connection. It is not a replacement for ordinary calculations during rendering.
 
 <Callout>Before adding an effect, ask whether the value can be calculated from props or state instead.</Callout>
+
+This one distinction — synchronization versus calculation — resolves most of the confusion around when an effect belongs in a component at all. If a value is fully determined by the props and state you already have, it doesn't need its own `useState` and effect to keep it updated. It can just be computed inline, during render, like any other expression.
+
+```tsx
+// Unnecessary indirection
+const [total, setTotal] = useState(0);
+useEffect(() => {
+  setTotal(price * quantity);
+}, [price, quantity]);
+
+// The value can just be derived
+const total = price * quantity;
+```
+
+The derived version is not just shorter — it's also correct in a way the effect version isn't quite guaranteed to be. With the effect, there's a brief window on the first render where `total` is still `0`, before the effect has run. With a derived value, it's always correct on the very first render, because there's no separate step for it to lag behind.
+
+Genuine synchronization looks different. It's connecting to something that lives outside React's own state model and needs to be kept in sync with it — a WebSocket connection that should open when a chat room ID changes, a scroll listener, a piece of `document.title` that should reflect the current page.
+
+```tsx
+useEffect(() => {
+  const connection = createConnection(roomId);
+  connection.connect();
+
+  return () => {
+    connection.disconnect();
+  };
+}, [roomId]);
+```
+
+Note the returned cleanup function. It runs before the effect re-runs (say, if `roomId` changes) and once more when the component unmounts. Skipping cleanup is how you end up with duplicate connections, listeners that fire after a component is gone, or the classic warning about updating state on an unmounted component. It's tempting to treat cleanup as optional when you're moving fast, but for anything that opens a connection, sets a timer, or subscribes to an event, it's not really optional at all.
 
 ## Extract custom Hooks
 
@@ -40,3 +98,66 @@ function useDocumentTitle(title: string) {
   }, [title]);
 }
 ```
+
+That last sentence — express intent, not just hide lines of code — is worth sitting with, because it's the difference between a custom Hook that makes a codebase easier to read and one that just adds an extra layer of indirection. `useDocumentTitle('Dashboard')` tells you exactly what's happening the moment you read it. Compare that to a Hook named something generic like `useEffectHelper`, which hides logic without communicating what that logic actually does.
+
+A useful test before extracting a Hook: could you explain what it does in one sentence, using its name alone? If the name already tells the story — `useWindowWidth`, `useDebouncedValue`, `useLocalStorage` — you're probably extracting the right thing. If you find yourself needing to read the implementation to understand what it's for, the abstraction might be adding overhead rather than removing it.
+
+Custom Hooks also don't need to be complicated to be worth writing. Here's one that tracks whether an element is currently visible in the viewport, a pattern that shows up constantly for lazy-loading images or triggering animations:
+
+```tsx
+function useIsVisible(ref: React.RefObject<Element>) {
+  const [isVisible, setIsVisible] = useState(false);
+
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      setIsVisible(entry.isIntersecting);
+    });
+
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+
+  return isVisible;
+}
+```
+
+Any component can now call `useIsVisible(myRef)` and get a boolean back, without needing to know or care that an `IntersectionObserver` is involved at all. That's the actual value custom Hooks provide — not code reduction on its own, but a boundary that lets the rest of your component stay focused on what it's displaying rather than how it's tracking browser behavior.
+
+## Reading vs. reacting to state changes
+
+One distinction that separates comfortable Hooks usage from constant second-guessing is knowing when you need to react to a state change versus just read the current value.
+
+If you find yourself writing an effect whose only job is to respond to one specific state update — running some logic every time a particular variable changes — it's worth checking whether that logic can just live in the event handler that caused the change in the first place.
+
+```tsx
+// Reactive effect, triggered indirectly
+useEffect(() => {
+  if (isSubmitted) {
+    showConfirmation();
+  }
+}, [isSubmitted]);
+
+// Direct handling in the event that caused it
+function handleSubmit() {
+  setIsSubmitted(true);
+  showConfirmation();
+}
+```
+
+The second version isn't just shorter. It also avoids a subtle timing gap — in the effect version, there's a moment where `isSubmitted` is `true` but `showConfirmation` hasn't run yet, which opens the door to bugs if anything else in the component also depends on that same state during that window. Handling the reaction directly where the cause happens keeps the sequence of events easier to follow, both for you and for whoever reads the code after you.
+
+## A short list of habits worth keeping
+
+A few patterns tend to separate Hooks-based components that stay maintainable from ones that slowly turn into something nobody wants to touch:
+
+- **One `useState` per independent concern**, rather than one large object per component.
+- **Derive values during render** whenever they can be calculated from existing props or state, instead of storing and syncing them separately.
+- **Always clean up effects** that open connections, subscribe to events, or start timers.
+- **Name custom Hooks after what they do**, not after the mechanism they use internally.
+- **Push reactive logic into the event that caused it**, when that's where the cause actually lives, rather than chasing it through a separate effect.
+
+None of these are rules enforced by the compiler — you can ignore all of them and still ship working code. But components built this way tend to stay readable months later, when you or someone else comes back to them without the context that was in your head the day you wrote them. That's really what Hooks are for: not just a new way to write state, but a shape that makes a component's intent visible on the page, rather than buried in a lifecycle method somewhere else.

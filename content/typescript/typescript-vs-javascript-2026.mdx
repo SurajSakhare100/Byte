@@ -13,12 +13,80 @@ featured: false
 draft: false
 ---
 
-JavaScript is the language browsers execute. TypeScript adds a type system that checks your code before it reaches users.
+# TypeScript vs JavaScript: Which Should You Learn in 2026?
+
+Every few months, someone asks some version of the same question: should I learn JavaScript or just skip straight to TypeScript? It's a reasonable thing to wonder, especially with how often TypeScript shows up in job postings and starter templates these days. But the framing itself is a little off, and clearing that up is the fastest way to actually answer the question.
+
+JavaScript is the language browsers execute. TypeScript adds a type system that checks your code before it reaches users. That second sentence is doing a lot of work — TypeScript isn't a separate language competing with JavaScript for the same job. It's a layer on top of it. Every valid JavaScript file is already close to valid TypeScript, and when you run TypeScript code, it gets compiled down into plain JavaScript before a browser or Node.js ever sees it. So the real question isn't "which one," it's "when does adding types start paying off for what I'm building."
+
+## What each one is actually doing
+
+JavaScript handles everything that happens once your code runs: variables holding values, functions executing, objects getting created and mutated, promises resolving, the DOM updating on screen. None of that changes when you add TypeScript. TypeScript's entire contribution happens before any of that — during development, while you're writing the code, it checks whether the types you've declared (or that it can infer) are consistent with how you're actually using them.
+
+That distinction matters because it explains why TypeScript can catch certain classes of bugs that JavaScript simply can't, structurally. If you pass a string where a function expects a number, TypeScript will flag it the moment you write it, often before you've even saved the file, thanks to editor integration. In plain JavaScript, that same mistake might not surface until the function actually runs in production and someone hits an error that has nothing to do with the real cause.
+
+```ts
+function calculateTotal(price: number, quantity: number): number {
+  return price * quantity;
+}
+
+calculateTotal('29.99', 2); // TypeScript flags this immediately
+```
+
+```js
+function calculateTotal(price, quantity) {
+  return price * quantity;
+}
+
+calculateTotal('29.99', 2); // Runs fine, returns "29.9929.99" — a silent bug
+```
+
+That second example isn't a contrived edge case. String-number mix-ups like this are one of the most common sources of quiet, hard-to-trace bugs in JavaScript codebases, precisely because the language doesn't stop you — it just does its best with whatever you gave it.
 
 ## Learn the runtime first
 
-Understand values, functions, objects, async work, and the DOM. Those skills transfer directly to TypeScript.
+Understand values, functions, objects, async work, and the DOM. Those skills transfer directly to TypeScript. This is the part that gets skipped when people try to rush toward whichever technology looks more in-demand on a job board. TypeScript's type system is checking your understanding of JavaScript's actual behavior — closures, `this` binding, how promises chain, how objects are passed by reference. If those concepts aren't solid yet, TypeScript's errors will feel like arbitrary noise from a tool getting in your way, rather than useful signals about a real mistake.
+
+There's also a simpler, more practical reason to start here: almost every TypeScript project you'll ever touch is still fundamentally a JavaScript project underneath. Debugging a production issue often means reading compiled output, understanding a stack trace, or reasoning about runtime behavior that types alone can't fully describe — a `null` value from an API response, a race condition between two async calls, a mutation you didn't expect. Types help you avoid entire categories of these problems, but they don't replace the underlying mental model of how JavaScript actually executes.
 
 ## Add types as your projects grow
 
-Types make refactoring safer and give editors better autocomplete. They are especially valuable in shared codebases.
+Types make refactoring safer and give editors better autocomplete. They are especially valuable in shared codebases. This is really where TypeScript's value becomes obvious rather than theoretical. In a small, solo script, the overhead of writing type annotations can genuinely outweigh the benefit — you already know what shape your data is in, because you wrote all of it five minutes ago.
+
+That calculation flips almost entirely once a project grows past a certain size, or once more than one person is touching the same code. A function you wrote months ago, being called from a file you've never opened, is exactly the situation where JavaScript's flexibility turns into a liability. You either have to read through the implementation to understand what it expects, or trust that whatever documentation exists is accurate and up to date. TypeScript turns that same situation into something your editor can just tell you, instantly, through autocomplete and inline type hints.
+
+```ts
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: 'admin' | 'member' | 'guest';
+}
+
+function canEditSettings(user: User): boolean {
+  return user.role === 'admin';
+}
+```
+
+Anyone calling `canEditSettings` gets immediate feedback on exactly what shape of object it expects, without needing to open the function body at all. Rename `role` to something else, and every place using it lights up as an error, rather than failing silently at runtime somewhere far removed from the actual change.
+
+## Where TypeScript adds the most value
+
+A few situations tend to show TypeScript's benefit most clearly:
+
+- **Refactoring.** Renaming a property, changing a function's signature, or restructuring an object shape becomes something the compiler can verify for you across an entire codebase, instead of something you hope you caught with a manual search.
+- **Team codebases.** When multiple people are writing code that calls into each other's functions and components, types act as a lightweight, always-up-to-date form of documentation that can't drift out of sync the way comments can.
+- **Public APIs and libraries.** If other developers are going to consume your code without reading its source, type definitions tell them exactly what to expect, and their editor will surface that information automatically.
+- **Large, long-lived projects.** The value of catching a mismatched type at write-time compounds the longer a codebase lives and the more people touch it over its lifetime.
+
+## Where plain JavaScript still makes sense
+
+None of this makes JavaScript the wrong choice in every situation. Small scripts, quick prototypes, and one-off tools often don't benefit much from the overhead of setting up a build step and writing type annotations, especially if the code has a short lifespan and one clear author. Some teams also intentionally use JavaScript with JSDoc comments as a middle ground — getting a decent chunk of editor type-checking without adopting a full TypeScript build pipeline.
+
+It's also worth being honest that TypeScript isn't free. It adds a compile step, a slightly steeper learning curve around generics and utility types once you go beyond the basics, and occasional friction when working with loosely typed third-party libraries. None of that outweighs the benefits for most production codebases, but it's not a purely upside decision either — it's a trade of some upfront overhead for long-term safety and clarity.
+
+## So, which should you actually learn first?
+
+If you're starting from zero, learn JavaScript first, and don't rush past it. Get comfortable with functions, objects, arrays, promises, and how the DOM responds to your code. Build a few small projects without types at all, and notice where bugs come from — a typo in a property name, a function called with the wrong argument order, an API response that didn't have the field you expected. Those exact frustrations are what TypeScript exists to prevent, and they'll mean far more to you once you've actually felt them firsthand.
+
+Once you're comfortable writing JavaScript and start working on something bigger than a single file — a real project, a shared codebase, something you intend to maintain for more than a few weeks — that's the natural point to bring TypeScript in. At that stage, the type system stops feeling like an obstacle and starts feeling like exactly what it's designed to be: a second set of eyes checking your work before anyone else has to.

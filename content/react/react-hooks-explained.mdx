@@ -13,12 +13,213 @@ featured: false
 draft: false
 ---
 
-Hooks let function components remember values and synchronize with the browser. Start with `useState` for information that changes on screen.
+# React Hooks Explained: A Complete Beginner's Guide
 
-## Use state for changing UI
+There was a time when React components came in two flavors: class components, which could hold state and respond to lifecycle events, and function components, which were basically just plain functions that rendered some JSX and nothing else. If you wanted state, you wrote a class. There wasn't really a way around it.
 
-Keep state small and specific. A boolean for an open menu is clearer than one large object for every UI concern.
+Hooks changed that, and it wasn't a small change. Since their introduction, function components can now do everything class components used to do, and in most codebases today, you'll rarely see a class component at all. But the "how" behind hooks matters more than the history lesson. Once you understand what a hook actually is, the rest of the API starts to feel less like a list of things to memorize and more like a small, consistent set of tools.
 
-## Use effects for external systems
+## What a hook actually is
 
-Use `useEffect` to connect to subscriptions, timers, or browser APIs. Values calculated from props and state usually do not need an effect.
+At its simplest, a hook is a function that lets a function component remember something between renders, or synchronize with something outside of React entirely — the browser, a timer, a subscription, a DOM node. Function components on their own are stateless; every time they run, all of their local variables reset to their initial values. Hooks are the mechanism that lets specific pieces of information survive across those re-renders.
+
+The naming convention (`useSomething`) isn't just a style choice — it's how React and its tooling recognize hooks and enforce the rules around them, like only calling them at the top level of a component and never inside loops or conditionals. If you've used ESLint with the `eslint-plugin-react-hooks` package, this is exactly what it's checking for.
+
+## useState: the starting point
+
+`useState` is almost always the first hook people learn, and for good reason — it maps directly onto the most common thing components need to do: hold a piece of information that changes on screen.
+
+```jsx
+import { useState } from 'react';
+
+function LikeButton() {
+  const [liked, setLiked] = useState(false);
+
+  return (
+    <button onClick={() => setLiked(!liked)}>
+      {liked ? 'Liked' : 'Like'}
+    </button>
+  );
+}
+```
+
+Calling `useState(false)` gives you back an array with two things: the current value, and a function to update it. When `setLiked` is called, React re-renders the component with the new value, and `liked` reflects that update on the next render.
+
+A habit worth building early is keeping state small and specific rather than bundling everything into one large object. A boolean for whether a menu is open is far easier to reason about than one big `uiState` object tracking every unrelated flag in your component. Smaller state also means fewer accidental re-renders, since React only needs to compare the specific piece that changed.
+
+```jsx
+// Clearer
+const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+// Muddier — mixes unrelated concerns into one object
+const [uiState, setUiState] = useState({
+  isMenuOpen: false,
+  isModalOpen: false,
+  theme: 'light',
+});
+```
+
+This isn't a hard rule — sometimes grouping related values genuinely makes sense — but when in doubt, splitting state by concern usually pays off later.
+
+## useEffect: connecting to the outside world
+
+Once your component needs to talk to something outside of React's own rendering process — a subscription, a timer, `document.title`, a WebSocket, browser storage — `useEffect` is the hook designed for that.
+
+```jsx
+import { useEffect, useState } from 'react';
+
+function OnlineStatus() {
+  const [isOnline, setIsOnline] = useState(navigator.onLine);
+
+  useEffect(() => {
+    function handleOnline() {
+      setIsOnline(true);
+    }
+    function handleOffline() {
+      setIsOnline(false);
+    }
+
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  return <p>{isOnline ? 'You are online' : 'You are offline'}</p>;
+}
+```
+
+The function returned inside `useEffect` is the cleanup function — React calls it before the effect runs again, and once more when the component unmounts. Forgetting cleanup is one of the most common sources of memory leaks and stray event listeners in React apps, so it's worth treating it as a required step rather than an optional one.
+
+The part that trips people up most often is figuring out when an effect is actually needed. A very common mistake is reaching for `useEffect` to calculate a value from existing props or state:
+
+```jsx
+// Unnecessary — this doesn't need an effect
+const [fullName, setFullName] = useState('');
+useEffect(() => {
+  setFullName(`${firstName} ${lastName}`);
+}, [firstName, lastName]);
+
+// Simpler — just compute it during render
+const fullName = `${firstName} ${lastName}`;
+```
+
+If a value can be derived directly from props or state during render, it usually should be — no effect, no extra state, no timing issues. Reserve `useEffect` for genuine synchronization with something React doesn't control.
+
+## useContext: skipping the prop-drilling
+
+As components nest deeper, passing a value down through five layers of props just so the sixth layer can use it gets tedious fast — a pattern usually called prop drilling. `useContext` solves this by letting any component read a value from a `Context.Provider` higher up the tree, without every layer in between needing to know about it.
+
+```jsx
+import { createContext, useContext } from 'react';
+
+const ThemeContext = createContext('light');
+
+function ThemedButton() {
+  const theme = useContext(ThemeContext);
+  return <button className={theme}>Click me</button>;
+}
+```
+
+Context is great for things that genuinely are global to a section of your app — theme, authenticated user, locale — but it's not a replacement for well-structured props in general. Overusing context for values that only two or three components actually need tends to make data flow harder to trace, not easier.
+
+## useRef: holding onto something without triggering a render
+
+`useRef` gives you a mutable box that persists across renders, but — and this is the key difference from `useState` — updating it doesn't cause a re-render. This makes it useful for two very different situations: referencing a DOM node directly, or storing a value you need to keep around without it affecting what's on screen.
+
+```jsx
+import { useRef } from 'react';
+
+function TextInputWithFocusButton() {
+  const inputRef = useRef(null);
+
+  return (
+    <>
+      <input ref={inputRef} />
+      <button onClick={() => inputRef.current.focus()}>
+        Focus the input
+      </button>
+    </>
+  );
+}
+```
+
+A common mental model: if changing the value should update what the user sees, use `useState`. If it's more like a note to yourself that the render logic doesn't care about, `useRef` is usually the better fit.
+
+## The hooks React added for handling async work
+
+React's built-in hook list has grown since the early days of just `useState` and `useEffect`. The current stable line of React ships with additional hooks specifically aimed at reducing the boilerplate around asynchronous updates — form submissions, mutations, pending states — that used to require manually juggling multiple `useState` calls for loading, error, and success states.
+
+`useActionState` wraps a function (commonly called an "Action") and gives you back its latest result along with a pending flag, without you needing to track that state by hand:
+
+```jsx
+import { useActionState } from 'react';
+
+function ChangeNameForm({ currentName, onNameChange }) {
+  const [error, submitAction, isPending] = useActionState(
+    async (previousState, formData) => {
+      const newName = formData.get('name');
+      const result = await onNameChange(newName);
+      if (result?.error) {
+        return result.error;
+      }
+      return null;
+    },
+    null
+  );
+
+  return (
+    <form action={submitAction}>
+      <input type="text" name="name" defaultValue={currentName} />
+      <button type="submit" disabled={isPending}>Update</button>
+      {error && <p>{error}</p>}
+    </form>
+  );
+}
+```
+
+Alongside it, `useOptimistic` lets you show an anticipated result immediately — before the server has actually confirmed it — and then reconcile once the real response comes back. This is the pattern behind things like a message appearing instantly in a chat app the moment you hit send, rather than waiting on a round trip before it shows up.
+
+There's also a more general `use` API, which — unlike other hooks — can be called conditionally, and can be used to read a promise or context value directly during render. It's still settling into common patterns across the ecosystem, but it's part of what makes newer data-fetching approaches feel less manual than the old "fetch inside `useEffect`, track loading and error in `useState`" pattern.
+
+You don't need to reach for these on day one. `useState` and `useEffect` will carry you through the overwhelming majority of components you write. But knowing they exist means you won't reinvent a worse version of them the first time you hit a form with a pending state and an error message.
+
+## The React Compiler and what it means for hooks like useMemo and useCallback
+
+One shift worth knowing about, even as a beginner: newer tooling in the React ecosystem includes a compiler that can automatically memoize components and values at build time. In practice, this reduces how often you need to reach for `useMemo` or `useCallback` yourself, since the compiler can often apply the same optimization without you writing it by hand.
+
+That doesn't mean these hooks disappear from the API or that you should avoid learning them — plenty of codebases you'll work in won't have the compiler enabled, and understanding what memoization is actually solving (skipping expensive recalculations, keeping stable function references for child components) is still core knowledge. It just means that, going forward, you may find yourself writing less manual optimization code than tutorials from a few years ago would suggest.
+
+## Rules that keep hooks predictable
+
+Two rules make hooks behave the way React expects, and both are enforced by lint rules in most starter templates:
+
+1. **Only call hooks at the top level.** Never inside loops, conditions, or nested functions. React relies on hooks being called in the exact same order on every render to correctly associate state with the right `useState` or `useEffect` call.
+2. **Only call hooks from React functions.** Function components or custom hooks — not regular JavaScript functions.
+
+If you ever see the "Rendered more hooks than during the previous render" error, it almost always traces back to a hook being called conditionally somewhere it shouldn't be.
+
+## Writing your own hooks
+
+Once you're comfortable with the built-in set, custom hooks are just regular functions that call other hooks and share reusable logic between components. If you find yourself copying the same `useState` and `useEffect` combination across multiple components, that's usually a sign it belongs in a custom hook.
+
+```jsx
+function useWindowWidth() {
+  const [width, setWidth] = useState(window.innerWidth);
+
+  useEffect(() => {
+    function handleResize() {
+      setWidth(window.innerWidth);
+    }
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  return width;
+}
+```
+
+Any component can now call `useWindowWidth()` and get a live-updating value, without duplicating the event listener logic each time. This is where hooks start to feel less like a React feature and more like a general pattern for organizing stateful logic — which, honestly, is the whole point they were introduced to solve in the first place.

@@ -13,12 +13,84 @@ featured: false
 draft: false
 ---
 
-Managed backends reduce setup time, but the best choice depends on your data model and how much control you need.
+# Firebase vs Supabase: Which Backend Should You Choose?
+
+Managed backends reduce setup time, but the best choice depends on your data model and how much control you need. That's really the honest answer to "Firebase or Supabase," even though it's not the satisfying one people are usually hoping for. Both platforms solve the same basic problem — give you a database, authentication, file storage, and some way to run server-side logic, without you standing up and maintaining that infrastructure yourself. Where they genuinely differ is in the assumptions baked into each one, and those assumptions matter more to your day-to-day experience than any feature checklist does.
 
 ## Consider your database needs
 
-Supabase centers on Postgres and relational data. Firebase offers a document-oriented workflow with mature client SDKs.
+Supabase centers on Postgres and relational data. Firebase offers a document-oriented workflow with mature client SDKs. This is the single biggest fork in the road, and it's worth sitting with before anything else, because it shapes almost every other decision downstream.
+
+Supabase gives you an actual, standard Postgres database. That means real tables, foreign keys, joins, and SQL you can write directly — plus everything the Postgres ecosystem already has, like extensions for full-text search or vector similarity search for AI features. If your data naturally has relationships — users who belong to teams, orders that reference products, comments that reference posts — a relational model tends to represent that more directly, and querying across those relationships is something SQL was built for.
+
+```sql
+select posts.title, users.name
+from posts
+join users on posts.author_id = users.id
+where users.team_id = 'team_123';
+```
+
+Firebase's Firestore, on the other hand, is a NoSQL document database. Data lives in collections of documents, and relationships between documents are something you model yourself — either by duplicating data across documents (denormalization) or by making multiple separate reads and joining the results in your application code, since Firestore doesn't support server-side joins the way SQL does.
+
+```js
+const postsSnapshot = await db.collection('posts')
+  .where('teamId', '==', 'team_123')
+  .get();
+// Any related user data needs a separate read, or to already be duplicated onto the post document
+```
+
+This isn't a flaw in Firestore so much as a different tradeoff. Denormalized, document-shaped data tends to scale very predictably for reads — you fetch a document, you get everything you need, no joins required — which is part of why Firestore pairs so well with real-time listeners that push updates straight to a client the moment something changes. The cost shows up when your data has a lot of interconnected relationships, since keeping duplicated copies in sync, or fetching related data across several round trips, adds complexity that a relational join would have handled in one query.
+
+If you already know SQL, or your data is inherently relational (most business applications, marketplaces, anything with users-belonging-to-organizations style structures), Supabase's Postgres foundation will likely feel more natural. If your data is more independent per-document — user profiles, chat messages, product catalogs where each item mostly stands alone — Firestore's model can be a genuinely good fit, especially combined with its real-time sync.
+
+## Authentication and how it plugs into everything else
+
+Both platforms ship a full authentication system with email/password, social sign-in providers, and session handling out of the box, so this isn't really a "one has it and one doesn't" comparison. The difference is in how tightly auth integrates with the rest of the platform's permission model.
+
+Supabase's auth system is built to work directly with Postgres's Row Level Security (RLS) — permission rules that live in the database itself and are enforced no matter what client or API path a request comes through.
+
+```sql
+create policy "Users can view their own orders"
+on orders for select
+using (auth.uid() = user_id);
+```
+
+Once a policy like this exists, it's enforced at the database layer, which means even a request made directly against the auto-generated REST or GraphQL API respects it, without your application code needing to remember to add that check everywhere.
+
+Firebase's equivalent is Firestore Security Rules, written in a rules-specific language rather than SQL, and enforced at the Firestore layer rather than inside a general-purpose relational database.
+
+```js
+match /orders/{orderId} {
+  allow read: if request.auth.uid == resource.data.userId;
+}
+```
+
+Functionally, both approaches achieve the same goal — permission logic that lives close to the data rather than scattered across application code — the difference is mostly about which language and mental model you're more comfortable reasoning in: SQL policies against a relational schema, or rules against a document tree.
+
+## Hosting, functions, and the rest of the platform
+
+Firebase is part of the broader Google Cloud ecosystem, and that shows up in how deeply it integrates with things like Cloud Functions, Google Analytics, and Cloud Messaging for push notifications. If a project is already leaning on other Google tools, or needs mobile push notifications and deep mobile SDK support, Firebase's maturity here is hard to match — its client SDKs for iOS and Android have simply had more years of refinement for exactly this use case.
+
+Supabase leans into being an open, Postgres-centered platform rather than tying itself to one cloud provider's broader ecosystem. Alongside the database, it bundles Auth, file Storage, Edge Functions (serverless functions that run close to users), and a Realtime engine that can stream Postgres changes to subscribed clients — a similar real-time capability to Firestore's listeners, just layered on top of a relational database instead of a document one. Supabase is also open source and self-hostable, which matters if data residency, compliance, or avoiding vendor lock-in are real concerns for your project, since you can run the entire stack on your own infrastructure if needed.
+
+## How the billing models actually differ
+
+This is where a lot of surprise bills come from, on either platform, and it's worth understanding the shape of each model rather than memorizing specific numbers, since both platforms adjust their rates over time.
+
+Firebase's Blaze plan bills per operation — per document read, per write, per function invocation, per gigabyte transferred. This scales down beautifully: an app with almost no traffic costs almost nothing. But it also means the bill is directly tied to how efficiently your queries are written. An unbounded query that reads far more documents than necessary, or a Cloud Function stuck in a retry loop, can turn a small bill into a very large one surprisingly quickly, since there's no database-level cap on how much you can be charged.
+
+Supabase's Pro plan works differently: a flat monthly base fee that includes a bundle of resources, plus a dedicated compute instance you choose the size of, billed continuously whether it's under load or sitting idle. This makes costs far more predictable for steady, production-level traffic — you know roughly what you're paying before the month starts — but it means an idle side project on a paid tier is still paying for that reserved compute around the clock, which is a different kind of inefficiency than Firebase's per-operation model.
+
+Neither approach is objectively better; they optimize for different situations. Bursty, unpredictable, or very low-traffic workloads often suit Firebase's scale-to-zero billing. Steady, predictable production traffic tends to suit Supabase's flat-plus-compute model, where you're not paying a premium per operation once you're past a certain scale. Since both companies adjust pricing and free-tier limits periodically, it's worth checking each platform's current pricing page directly before committing, rather than relying on numbers from any single article, including this one.
 
 ## Decide with a small prototype
 
-Build authentication, one core data flow, and a permission rule before committing to a platform.
+Build authentication, one core data flow, and a permission rule before committing to a platform. This is the most useful advice in this entire comparison, and it's worth taking literally rather than treating as a throwaway suggestion. Feature comparisons and pricing tables can only tell you so much — the actual experience of writing queries, structuring your data, and reasoning about permissions is something you only really feel once you've built something small and real.
+
+A good prototype doesn't need to be your actual product. Pick one meaningful slice: user sign-up and login, one core piece of data that resembles what your real app will store, and one permission rule that mirrors an actual requirement (users can only see their own records, for instance). Build that same slice on both platforms if you have the time, or at minimum on the one you're leaning toward, and pay attention to where you hit friction. Does modeling your data feel natural, or are you fighting the shape the platform wants? Does writing the permission rule feel like something you can reason about confidently, or does it feel like guesswork?
+
+That friction — or the lack of it — tells you more about which platform fits your project than any feature list can, because it reflects how you'll actually feel debugging this platform's quirks six months into a real, growing codebase.
+
+## Where this leaves you
+
+If your data is relational, your team already thinks in SQL, or you want an open, self-hostable foundation with predictable production costs, Supabase's Postgres-first approach is the more natural fit. If you're building something mobile-heavy, want the deepest possible integration with Google's broader ecosystem, or your data is genuinely document-shaped and benefits from Firestore's real-time sync and scale-to-zero billing, Firebase remains an excellent, battle-tested choice. Both are mature, production-ready platforms used at real scale — the right one for you is less about which is "better" in the abstract, and more about which model matches how your data actually looks and how your team already thinks.

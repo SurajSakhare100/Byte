@@ -13,12 +13,227 @@ featured: false
 draft: false
 ---
 
-Continuous integration runs repeatable checks whenever code changes. GitHub Actions keeps that workflow close to your repository.
+# GitHub Actions Tutorial: Automate Your Workflow with CI/CD
+
+Continuous integration runs repeatable checks whenever code changes. GitHub Actions keeps that workflow close to your repository. That closeness is really the whole appeal. Instead of configuring a separate CI service, wiring up webhooks, and juggling a second dashboard, your automation lives in the same repository as your code, versioned right alongside it. A workflow file is just YAML sitting in `.github/workflows/`, reviewed in pull requests the same way you'd review any other change.
+
+This walkthrough builds a workflow from nothing — a single job that runs your checks — up through secrets, matrix testing, and a deployment step gated behind those checks passing.
+
+## How a workflow is put together
+
+Before writing anything, it helps to know the four pieces that make up every GitHub Actions workflow:
+
+- **Workflow** — the whole YAML file, triggered by some event.
+- **Job** — a group of steps that runs on a single runner (a fresh virtual machine). A workflow can have multiple jobs, and by default they run in parallel unless you tell them to depend on each other.
+- **Step** — an individual command or action inside a job, run in order.
+- **Action** — a reusable piece of automation, either one you write yourself or one published by someone else (`actions/checkout`, for instance, which just clones your repository onto the runner).
+
+Every workflow file starts with a name and a trigger:
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+```
+
+This says: run whenever someone pushes to `main`, and also whenever a pull request targets `main`. That second trigger matters more than it looks — it's what gives you a check running against the proposed change itself, before it's merged, not just after.
 
 ## Start with one workflow
 
-Run installation, linting, type checks, and tests on every pull request before adding deployment steps.
+Run installation, linting, type checks, and tests on every pull request before adding deployment steps. Resist the urge to build a deployment pipeline on day one. Get one job reliably running your existing checks first, since that's the workflow you'll lean on constantly, and it's the easiest to get right before layering anything more complex on top.
+
+```yaml
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Run tests
+        run: npm test
+```
+
+A few details worth understanding rather than just copying:
+
+`runs-on: ubuntu-latest` picks the virtual machine image the job executes on — GitHub also offers Windows and macOS runners, but Linux is the fastest and cheapest default for most JavaScript or Python projects.
+
+`actions/checkout@v4` is almost always your first step. Without it, the runner starts as an empty machine with no access to your repository's files at all.
+
+`npm ci` rather than `npm install` matters here specifically. `npm ci` installs exactly what's in your lockfile, fails if the lockfile and `package.json` are out of sync, and is both faster and more deterministic in a CI environment — you want the exact same dependency tree every time this runs, not whatever the resolver decides is acceptable that day.
+
+The `cache: 'npm'` option on `setup-node` caches your `node_modules` between runs based on your lockfile's contents, which noticeably speeds up repeated workflow runs, since dependencies don't need to be re-downloaded from scratch every single time.
+
+## Splitting checks into their own jobs
+
+As a project grows, running lint, type checks, and tests as sequential steps inside one job means a slow test suite blocks you from seeing a quick lint failure until everything else has already finished. Splitting them into separate jobs lets them run in parallel, since jobs are independent by default.
+
+```yaml
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+```
+
+Now `lint` and `test` run at the same time, on separate runners, and a failure in one doesn't wait on the other to finish before reporting back. The tradeoff is a bit of duplication in the setup steps for each job, which is a reasonable price for faster overall feedback.
+
+## Testing across multiple versions with a matrix
+
+If your project needs to support more than one Node.js version, or you want to verify behavior across operating systems, a matrix strategy runs the same job multiple times with different inputs, without duplicating the YAML for each combination.
+
+```yaml
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: [18, 20, 22]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: 'npm'
+      - run: npm ci
+      - run: npm test
+```
+
+This produces three parallel jobs — one per Node version listed — each running the exact same steps with `matrix.node-version` substituted in. If your library needs to work reliably across a range of environments your users might have, this is the difference between finding a version-specific bug from a user's bug report versus finding it here, before you ship.
 
 ## Protect secrets
 
-Store tokens in repository or environment secrets and expose them only to jobs that need them.
+Store tokens in repository or environment secrets and expose them only to jobs that need them. The moment your workflow needs to talk to something outside the runner — deploying to a server, publishing a package, calling an API that requires authentication — it needs a credential, and that credential should never be hardcoded into the workflow file itself, since workflow files are visible to anyone who can read the repository.
+
+GitHub gives you a dedicated place for this: repository secrets, set under the repository's Settings → Secrets and variables → Actions. Once added there, a secret is referenced in a workflow through the `secrets` context, and its value is automatically masked in any log output, so it won't appear even if a step accidentally prints it.
+
+```yaml
+- name: Deploy
+  run: ./deploy.sh
+  env:
+    DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+```
+
+For projects with distinct stages — staging versus production, for instance — environment secrets take this a step further. You can define separate environments in your repository settings, each with its own set of secrets, and require manual approval before a job tied to a protected environment (like production) is allowed to run.
+
+```yaml
+jobs:
+  deploy-production:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy to production
+        run: ./deploy.sh
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+```
+
+With `environment: production` set and protection rules configured, this job will pause and wait for an approved reviewer before it runs, regardless of how the earlier jobs finished — a reasonable safeguard for anything touching a live system.
+
+A related habit worth keeping: only give a workflow the permissions it actually needs. By default, the automatically generated `GITHUB_TOKEN` used for repository operations has fairly broad permissions, and it's good practice to scope it down explicitly.
+
+```yaml
+permissions:
+  contents: read
+  pull-requests: write
+```
+
+## Gating deployment behind your checks
+
+Once you have reliable lint, type-check, and test jobs, add deployment as a job that only runs after those pass, and only on the branch that represents what's actually live.
+
+```yaml
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy
+        run: ./deploy.sh
+        env:
+          DEPLOY_TOKEN: ${{ secrets.DEPLOY_TOKEN }}
+```
+
+The `needs: test` line is what enforces the ordering — `deploy` won't start until `test` has finished successfully, and if `test` fails, `deploy` is skipped entirely. The `if` condition adds a second layer of safety: even a direct push somehow bypassing the pull request flow will only trigger a deployment if it lands on `main`, and pull request events (which don't represent a merged, live change) never trigger it at all.
+
+## A few habits that keep workflows maintainable
+
+- **Pin action versions**, ideally to a specific major version tag like `@v4` rather than `@main`, so an upstream action update doesn't silently change your workflow's behavior overnight.
+- **Keep workflow files focused.** A single workflow handling lint, test, and deploy for one clear purpose is easier to reason about than one enormous file trying to cover every possible trigger and job.
+- **Fail fast where it makes sense**, but don't hide failures. If lint and tests can run in parallel, let them, but make sure a failure in either one clearly blocks a merge, typically enforced through required status checks in your branch protection settings.
+- **Cache dependencies**, but don't cache build artifacts you actually want rebuilt fresh each run — caching is for speeding up repeated, deterministic steps, not skipping steps you actually need to verify.
+- **Review workflow changes like code**, since a misconfigured deployment job with the wrong `if` condition can just as easily deploy something to production that was never meant to go live.
+
+## Where this leaves you
+
+None of this requires a dramatic rewrite of how your team works — it's an incremental build, starting from one job that runs your existing checks, growing into parallel jobs, matrix testing across environments, and finally a deployment step that only fires once everything ahead of it has actually passed. The result is a pipeline that lives in your repository, reviewed the same way as any other change, and one that quietly catches the mistakes that used to slip through before someone noticed them in production.

@@ -13,12 +13,211 @@ featured: false
 draft: false
 ---
 
-Performance work begins with measurement. Use the React Profiler and browser performance tools before applying memoization.
+# React Performance Optimization: 15 Proven Techniques
 
-## Avoid unnecessary rendering
+Performance work begins with measurement. Use the React Profiler and browser performance tools before applying memoization. This sounds like an obvious first step, but it's the one most people skip, and it's the reason so much "performance work" ends up being wasted effort — wrapping components in `memo`, sprinkling `useCallback` everywhere, splitting bundles that were never the bottleneck to begin with. None of that helps if the actual slowdown is a single component re-rendering a large list on every keystroke, or an unoptimized image blocking the first paint.
 
-Keep state close to where it is used, pass stable props when appropriate, and split expensive sections into smaller components.
+The techniques below are grouped roughly in the order you'd actually reach for them: figure out where the time is going, stop unnecessary re-renders, reduce the code and data the browser has to handle, and then reach for the more targeted tools once you know exactly what you're optimizing.
 
-## Load less code
+## 1. Profile before you optimize
 
-Use route-level splitting, dynamic imports, and optimized images to reduce the amount of work required for the first paint.
+React DevTools ships with a Profiler tab that records a session and shows you exactly which components rendered, how long each one took, and why it re-rendered at all. Wrap a suspicious interaction — typing in a search box, opening a modal, scrolling a list — in a recording, and look at the flame graph it produces. Components that re-render without their props or state actually changing show up clearly here, and that's almost always a better starting point than guessing.
+
+Alongside the Profiler, the browser's own Performance tab (in Chrome DevTools, for instance) shows you the bigger picture: script evaluation time, layout thrashing, paint events. React performance problems and browser performance problems aren't always the same thing, and conflating them leads to fixing the wrong layer.
+
+## 2. Keep state close to where it's used
+
+A common cause of unnecessary re-renders is state that lives higher in the component tree than it needs to. If a piece of state only affects a small section of the UI — say, whether one row's dropdown is expanded — keeping it in a parent component further up means every sibling under that parent re-renders whenever it changes, even ones that have nothing to do with it.
+
+```tsx
+// State lives too high — every row re-renders when one dropdown opens
+function TableRow({ row }) {
+  return <div>{row.name}</div>;
+}
+
+function Table({ rows }) {
+  const [openRowId, setOpenRowId] = useState(null);
+  return rows.map((row) => (
+    <TableRow key={row.id} row={row} isOpen={openRowId === row.id} onToggle={() => setOpenRowId(row.id)} />
+  ));
+}
+```
+
+```tsx
+// State lives inside the row that actually needs it
+function TableRow({ row }) {
+  const [isOpen, setIsOpen] = useState(false);
+  return <div onClick={() => setIsOpen(!isOpen)}>{row.name}</div>;
+}
+```
+
+Pushing state down to the smallest component that needs it means a re-render stays contained to that component instead of rippling out to its neighbors.
+
+## 3. Pass stable props when it matters
+
+Passing a new object, array, or function as a prop on every render defeats memoization even when a child is wrapped in `memo`, because React compares props by reference for anything that isn't a primitive.
+
+```tsx
+// A new object every render, even if the values are identical
+<UserCard style={{ margin: 10 }} onSave={() => save(user)} />
+```
+
+```tsx
+// Stable references that only change when their dependencies do
+const cardStyle = useMemo(() => ({ margin: 10 }), []);
+const handleSave = useCallback(() => save(user), [user]);
+<UserCard style={cardStyle} onSave={handleSave} />
+```
+
+This matters most for components that are genuinely expensive to render and are wrapped in `memo` specifically to avoid that cost — it's not something worth applying reflexively to every prop in every component, since `useMemo` and `useCallback` have their own small overhead too.
+
+## 4. Split expensive sections into smaller components
+
+If one component mixes cheap, frequently changing UI (a live counter, a search input) with an expensive section that rarely changes (a large chart, a heavy table), the expensive part re-renders every time the cheap part updates, simply because they're in the same component.
+
+Splitting them apart lets React skip over the expensive section entirely when only the cheap part's state has changed, especially once the expensive component is wrapped in `memo`.
+
+```tsx
+function Dashboard() {
+  const [query, setQuery] = useState('');
+  return (
+    <>
+      <input value={query} onChange={(e) => setQuery(e.target.value)} />
+      <ExpensiveChart /> {/* Now isolated from query's re-renders */}
+    </>
+  );
+}
+```
+
+## 5. Reach for memo, useMemo, and useCallback deliberately
+
+These three exist to skip work: `memo` skips re-rendering a component when its props haven't meaningfully changed, `useMemo` skips recalculating an expensive value, and `useCallback` skips recreating a function reference. All three are useful, and all three are frequently overused.
+
+The cost of memoization isn't zero — React still has to compare the previous and current values to decide whether to skip work, and for cheap components or trivial calculations, that comparison can cost more than just redoing the work would have. A good rule of thumb: reach for these when the Profiler has actually shown you a component or calculation that's expensive, not as a default habit applied to every function and component in a file.
+
+It's also worth knowing that newer tooling in the React ecosystem includes a compiler capable of applying this kind of memoization automatically at build time, which is gradually reducing how often teams need to write `useMemo` and `useCallback` by hand. Even so, understanding what problem they solve remains useful, since plenty of codebases won't have that tooling enabled for a while yet.
+
+## 6. Virtualize long lists
+
+Rendering a thousand rows into the DOM at once, even if each row is simple, is expensive — the browser has to lay out, paint, and keep track of every single node, most of which aren't even visible on screen. List virtualization (sometimes called windowing) renders only the rows currently in or near the viewport, and swaps them out as the user scrolls.
+
+Libraries like `react-window` or `@tanstack/react-virtual` handle the scroll math and positioning for you. The difference in a large table or feed is usually dramatic — going from thousands of DOM nodes to a few dozen at any given time.
+
+## 7. Use route-level code splitting
+
+Use route-level splitting, dynamic imports, and optimized images to reduce the amount of work required for the first paint. Most single-page apps ship every route's JavaScript in one bundle by default, which means a user visiting the homepage downloads code for the settings page, the checkout flow, and every other route they may never touch.
+
+```tsx
+import { lazy, Suspense } from 'react';
+
+const SettingsPage = lazy(() => import('./SettingsPage'));
+
+function App() {
+  return (
+    <Suspense fallback={<PageSkeleton />}>
+      <SettingsPage />
+    </Suspense>
+  );
+}
+```
+
+`lazy` tells the bundler to split that component into its own chunk, only downloaded when it's actually rendered. Combined with a router that supports lazy-loaded routes, this alone often cuts initial bundle size significantly for anything beyond a small app.
+
+## 8. Split beyond just routes
+
+Route-level splitting is the easiest win, but it's not the only place dynamic imports help. Modals, rarely-used settings panels, rich text editors, and heavy third-party widgets (charting libraries, PDF viewers) are all good candidates for splitting out of the main bundle, since they're often not needed until a specific user action.
+
+```tsx
+const PdfViewer = lazy(() => import('./PdfViewer'));
+
+function Document({ showPdf }) {
+  return showPdf ? (
+    <Suspense fallback={<Spinner />}>
+      <PdfViewer />
+    </Suspense>
+  ) : null;
+}
+```
+
+## 9. Optimize images deliberately
+
+Images are frequently the single largest contributor to a page's total weight, and unlike JavaScript, browsers can't defer parsing them the same way. A few habits go a long way: serve images sized appropriately for their actual display size rather than a full-resolution original, use modern formats like WebP or AVIF where supported, and set explicit `width` and `height` attributes so the browser can reserve space before the image loads, avoiding layout shift.
+
+```html
+<img src="/hero.webp" width="800" height="400" loading="lazy" alt="Product hero" />
+```
+
+The `loading="lazy"` attribute defers loading images below the fold until the user actually scrolls near them, which helps the initial page load focus on what's immediately visible.
+
+## 10. Debounce and throttle expensive handlers
+
+Search-as-you-type inputs, scroll listeners, and resize handlers can fire far more often than the UI actually needs to respond. Debouncing delays the handler until the user has paused (useful for search inputs, where you don't want to fire a request on every keystroke), while throttling limits how often a handler runs regardless of how frequently the underlying event fires (useful for scroll and resize).
+
+```tsx
+function useDebouncedValue<T>(value: T, delay: number) {
+  const [debounced, setDebounced] = useState(value);
+  useEffect(() => {
+    const timer = setTimeout(() => setDebounced(value), delay);
+    return () => clearTimeout(timer);
+  }, [value, delay]);
+  return debounced;
+}
+```
+
+## 11. Use useTransition for non-urgent updates
+
+Not every state update needs to happen immediately. `useTransition` lets you mark certain updates as lower priority, so React can keep the UI responsive to more urgent interactions — typing, clicking — while a heavier update (like re-filtering a large list) happens in the background without blocking the main thread.
+
+```tsx
+const [isPending, startTransition] = useTransition();
+
+function handleChange(e) {
+  const value = e.target.value;
+  setQuery(value); // urgent — keeps the input responsive
+  startTransition(() => {
+    setFilteredResults(filterLargeList(value)); // can be deferred
+  });
+}
+```
+
+## 12. Avoid unnecessary context re-renders
+
+Every component that consumes a context re-renders whenever that context's value changes, regardless of which specific field the component actually cares about. A single large context object holding many unrelated values means a change to any one of them re-renders every consumer of the whole context, even ones only using an unrelated field.
+
+Splitting a large context into smaller, more focused contexts — or memoizing the value passed to the provider — limits the blast radius of an update to only the consumers that actually need it.
+
+```tsx
+// One big context — any change re-renders everyone
+<AppContext.Provider value={{ user, theme, notifications }}>
+
+// Split into focused contexts instead
+<UserContext.Provider value={user}>
+  <ThemeContext.Provider value={theme}>
+    <NotificationsContext.Provider value={notifications}>
+```
+
+## 13. Check your key props in lists
+
+Using array indexes as keys in a list that can reorder, filter, or have items inserted in the middle causes React to misassociate state between items, and can force more re-renders (or re-mounts) than necessary as the list changes. A stable, unique identifier from your actual data — a database ID, a UUID — avoids this entirely.
+
+```tsx
+// Breaks when items are reordered or removed
+{items.map((item, index) => <Row key={index} item={item} />)}
+
+// Stays correctly associated with the right item
+{items.map((item) => <Row key={item.id} item={item} />)}
+```
+
+## 14. Watch bundle size, not just render time
+
+Rendering performance and load performance are different problems, and it's easy to fix one while ignoring the other. Tools like `source-map-explorer` or a bundler's built-in analyzer show you exactly what's taking up space in your JavaScript bundle — often revealing a large date library imported for one small utility, or an entire icon set bundled in when only a handful of icons are actually used.
+
+Trimming these down, or switching to lighter alternatives, frequently has a bigger impact on real-world load time (especially on slower connections) than any amount of render-level memoization.
+
+## 15. Measure again after every change
+
+The last technique is really a return to the first one. After applying any of the above, profile again and confirm the change actually helped. It's common for a "fix" — an added `memo`, a new debounce — to make no measurable difference, or even make things slightly worse in cases where the code being skipped wasn't expensive to begin with. Performance work that isn't validated against real measurements tends to accumulate as unnecessary complexity without ever paying for itself.
+
+## Bringing it together
+
+None of these techniques exist in isolation, and applying all fifteen to every component would be its own kind of mistake — added complexity in places that were never actually slow. The pattern that holds up in practice is: profile first, fix the biggest, most measurable bottleneck, confirm it helped, and only then move to the next one. Performance work done this way stays targeted, and the codebase stays readable, because every optimization you keep is one you can actually point to a measurement to justify.

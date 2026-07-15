@@ -13,12 +13,95 @@ featured: false
 draft: false
 ---
 
-Core Web Vitals describe loading, interaction responsiveness, and layout stability from the visitor’s point of view.
+# How to Optimize Website Performance for Better Core Web Vitals
+
+Core Web Vitals describe loading, interaction responsiveness, and layout stability from the visitor's point of view. That last part is worth sitting with before diving into any technical fix, because it's easy to treat these metrics as an abstract score to chase for search rankings and lose sight of what they're actually standing in for: does the page feel fast to a real person, on a real phone, on a real network connection that isn't the fiber line most of us develop on.
+
+Three metrics make up Core Web Vitals today: Largest Contentful Paint (LCP), which measures how long it takes for the main content of a page to appear; Interaction to Next Paint (INP), which measures how responsive the page feels when someone actually clicks, taps, or types; and Cumulative Layout Shift (CLS), which measures how much the layout jumps around while it's loading. If you've read older material on this topic, you may see a fourth metric, First Input Delay (FID), mentioned instead of INP — FID was replaced by INP as the official responsiveness metric back in March 2024, since INP captures the responsiveness of every interaction on a page rather than just the very first one, so any guide still centered on FID is describing an outdated picture.
+
+The current "good" thresholds are a Largest Contentful Paint under 2.5 seconds, an Interaction to Next Paint under 200 milliseconds, and a Cumulative Layout Shift score under 0.1. Google evaluates a page against these thresholds using real visitor data — specifically, the 75th percentile of actual page loads over a rolling window — not a single lab test run from a fast machine on a fast connection. That distinction matters enormously for how you approach fixing any of this.
 
 ## Measure real pages
 
-Use field data and a performance profile to identify the largest files, slowest work, and unstable layout areas.
+Use field data and a performance profile to identify the largest files, slowest work, and unstable layout areas. This is the step most people skip, and skipping it is exactly why so much performance work ends up being guesswork — optimizing something that was never actually the bottleneck, while the real problem sits untouched.
+
+Field data, sometimes called real user monitoring or RUM data, comes from actual visitors on their actual devices and networks. Google's Chrome User Experience Report (CrUX) is the source behind the Core Web Vitals reporting in Search Console and PageSpeed Insights, and it reflects a rolling window of real visits, typically the past 28 days. This is fundamentally different from a lab test run once in your own browser under ideal conditions — a page that scores well on your development machine over fast wifi can still fail badly for a meaningful share of visitors on a mid-range phone over a patchy mobile connection, and field data is what actually shows you that gap.
+
+Start with two free tools: Search Console's Core Web Vitals report shows you which URL groups on your actual site are failing, grouped by metric and by device type (mobile scores are almost always worse than desktop, given weaker processors and less reliable networks). PageSpeed Insights shows both field data (if your page has enough traffic to have any) and a lab-based Lighthouse report alongside it, with specific, itemized suggestions tied to your actual page.
+
+From there, Chrome DevTools' Performance panel is where you dig into cause and effect. Record a session while interacting with the page the way a real visitor would — scrolling, clicking a button, opening a menu — and look for three specific things: which network request is delaying your largest visible element (usually a hero image or a large block of text), which scripts are running long enough to block the main thread when someone interacts with the page, and which elements are shifting position after the page has already started rendering.
+
+```
+Chrome DevTools → Performance tab → Record →
+interact with the page → Stop → inspect the flame graph
+for long tasks and layout shift markers
+```
+
+A task that blocks the main thread for more than roughly 50 milliseconds is long enough to make a click or tap feel delayed, and a session recording will usually show you exactly which script is responsible, rather than leaving you to guess.
 
 ## Fix the highest-impact issue
 
-Optimize images, reduce render-blocking work, reserve layout space, and ship less client JavaScript.
+Optimize images, reduce render-blocking work, reserve layout space, and ship less client JavaScript. Each of the three metrics tends to have its own dominant cause, and knowing which one you're actually failing tells you where to spend your effort first.
+
+### If LCP is the problem
+
+LCP is most often held back by how long it takes for the single largest visible element — typically a hero image, a large heading, or a video poster frame — to load and render. A few fixes consistently move this metric the most:
+
+```html
+<img
+  src="/hero.webp"
+  width="1200"
+  height="600"
+  fetchpriority="high"
+  alt="Product hero image"
+/>
+```
+
+Marking your actual LCP element with `fetchpriority="high"` tells the browser to prioritize that specific resource over others competing for bandwidth early in the page load, and — critically — never lazy-load this specific image, since lazy-loading is meant for content below the fold and applying it to your LCP element actively delays the very thing you're trying to speed up.
+
+Beyond that: serve images in modern formats (WebP or AVIF) at the actual size they'll be displayed rather than a full-resolution original, reduce server response time through caching or a CDN so the very first byte arrives faster, and eliminate render-blocking CSS or JavaScript that delays the browser from starting to paint at all.
+
+### If INP is the problem
+
+INP is consistently the hardest of the three metrics to fix, because unlike LCP or CLS, it's rarely a matter of adjusting an attribute or compressing a file — it requires addressing how your JavaScript actually behaves during user interaction. The root cause is almost always a long task: a script that runs on the main thread for long enough to make the browser unable to respond to a click or keystroke until that task finishes.
+
+```js
+// A single large task blocks the main thread entirely
+function processAllItems(items) {
+  items.forEach((item) => doExpensiveWork(item));
+}
+
+// Breaking it into chunks yields control back between them
+function processItemsInChunks(items) {
+  if (items.length === 0) return;
+  const chunk = items.splice(0, 20);
+  chunk.forEach((item) => doExpensiveWork(item));
+  requestIdleCallback(() => processItemsInChunks(items));
+}
+```
+
+Splitting a large piece of work into smaller chunks and yielding control back to the browser between them lets it stay responsive to input in between, rather than freezing until the entire batch finishes. Beyond breaking up long tasks, reducing the amount of JavaScript that needs to run in the first place — code-splitting so a page only loads the script it actually needs, deferring non-critical third-party scripts (chat widgets, certain analytics tags) so they don't compete with interactive elements for main-thread time — tends to be the more durable fix, since less code running means less that can block a response in the first place.
+
+### If CLS is the problem
+
+CLS is usually the most mechanically straightforward of the three to diagnose and fix, because its causes are almost always a missing reservation of space. An image without explicit dimensions loads and pushes everything below it down. A web font that renders differently from its fallback text reflows the paragraph around it. An ad slot or embed that loads asynchronously inserts itself into the layout after the page has already settled.
+
+```html
+<!-- Missing dimensions — the image loading will shift everything below it -->
+<img src="/product.jpg" alt="Product photo" />
+
+<!-- Explicit dimensions reserve the space before the image loads -->
+<img src="/product.jpg" width="600" height="400" alt="Product photo" />
+```
+
+The fix, in almost every case, is reserving space in advance: explicit `width` and `height` on every image, video, and iframe; a `font-display: swap` strategy paired with font metrics that closely match your fallback font, so the swap doesn't visibly reflow text; and a fixed-height container reserved for anything that loads asynchronously, like an ad slot or a cookie consent banner, so its arrival doesn't push the rest of the page down.
+
+## Prioritize, then re-measure
+
+Trying to fix all three metrics on every page at once tends to produce less progress than picking your worst-performing template — the one contributing the most failing page views — and fixing that first, since the improvement usually multiplies across every page sharing that same layout or component.
+
+Within a single page, prioritize whichever metric is furthest from its "good" threshold rather than polishing one that's already passing. It's also worth knowing that CrUX field data updates on a rolling window, commonly around 28 days, so a fix you ship today won't be reflected in Search Console's field data immediately — checking again the next day and seeing no change isn't a sign the fix failed, it's just too soon to tell from real-user data. Lab tools like Lighthouse give you a much faster feedback loop for confirming a specific fix worked technically, even while you wait for field data to catch up and confirm it at scale.
+
+## Where this leaves you
+
+None of these fixes are exotic — reserving space for images, breaking up long JavaScript tasks, prioritizing the one resource that matters most for your first paint. What actually separates a page that passes Core Web Vitals from one that doesn't is usually discipline rather than cleverness: measuring with real field data instead of assuming, identifying the actual bottleneck instead of guessing, fixing the specific thing holding back the metric that's failing, and treating a regression after a deploy as a bug worth catching quickly rather than something to revisit someday. Passing all three consistently is less a one-time project and more an ongoing habit of paying attention to what your actual visitors are experiencing, on their actual devices, not just what your own fast laptop tells you on a quiet afternoon.
