@@ -27,10 +27,10 @@ export const site = {
     'developer blog',
   ],
   social: {
-    twitter: '@byte',
+    twitter: '@byteblogs',
     sameAs: [
       'https://byte.surajx.in',
-      'https://x.com/byte',
+      'https://x.com/byteblogs',
     ],
   },
   indexNow: {
