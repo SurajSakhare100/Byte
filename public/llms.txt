@@ -1,0 +1,44 @@
+# byte
+
+> Technical tutorials and articles on modern software development — covering programming, AI, web development, mobile development, cloud technologies, and open source.
+
+byte is a tech blog with practical engineering articles, from framework fundamentals to shipping smarter systems.
+
+## Articles
+
+- [Redis Pub/Sub Explained - Build Real-Time Apps with Redis](https://byte.surajx.in/blog/redis-pubsub-explained): Understand Redis Pub/Sub internals and use it to build real-time features like chat, notifications, and live updates.
+- [Google AdSense for Developers: How to Monetize Your Tech Blog](https://byte.surajx.in/blog/google-adsense-for-developers): Prepare a technical blog for advertising while keeping the reading experience and policy compliance first.
+- [How to Optimize Website Performance for Better Core Web Vitals](https://byte.surajx.in/blog/optimize-core-web-vitals): Improve loading, responsiveness, and visual stability with a measurement-led performance workflow.
+- [Complete Frontend Developer Roadmap for 2026](https://byte.surajx.in/blog/frontend-developer-roadmap-2026): A practical path from HTML and CSS foundations to modern frontend application development.
+- [Best Free AI Tools for Developers in 2026](https://byte.surajx.in/blog/best-free-ai-tools-developers-2026): A practical way to assess free AI tools for coding, research, testing, and documentation.
+- [How to Create an SEO-Friendly Next.js Blog Using MDX](https://byte.surajx.in/blog/seo-friendly-nextjs-mdx-blog): Build a static MDX blog with strong metadata, structured data, RSS, and a fast reading experience.
+- [DSA Roadmap for Beginners: Crack Coding Interviews Faster](https://byte.surajx.in/blog/dsa-roadmap-for-beginners): A realistic roadmap for learning data structures and algorithms through deliberate practice.
+- [Top 50 Linux Commands Every Developer Should Know](https://byte.surajx.in/blog/top-linux-commands-developers): Learn the Linux commands that make navigation, files, processes, and networking easier.
+- [GitHub Actions Tutorial: Automate Your Workflow with CI/CD](https://byte.surajx.in/blog/github-actions-cicd-tutorial): Create a dependable GitHub Actions workflow for testing, checking, and deploying code.
+- [Firebase vs Supabase: Which Backend Should You Choose?](https://byte.surajx.in/blog/firebase-vs-supabase): Compare Firebase and Supabase by data model, authentication, hosting, and team needs.
+- [How to Build a Full-Stack Application with Next.js](https://byte.surajx.in/blog/build-full-stack-nextjs-app): Plan a full-stack Next.js application with routes, data boundaries, validation, and deployment.
+- [Cursor AI Complete Guide: Features, Tips, and Best Practices](https://byte.surajx.in/blog/cursor-ai-complete-guide): Use Cursor AI effectively with focused context, clear prompts, and disciplined review.
+- [Best AI Coding Assistants Compared: ChatGPT, Claude, Cursor, and GitHub Copilot](https://byte.surajx.in/blog/best-ai-coding-assistants-compared): Compare popular AI coding tools by workflow, context, privacy, and review discipline.
+- [React Native vs Flutter: Which Is Better in 2026?](https://byte.surajx.in/blog/react-native-vs-flutter-2026): Compare React Native and Flutter across language, ecosystem, UI, and team fit.
+- [How to Deploy a Next.js App on Vercel](https://byte.surajx.in/blog/deploy-nextjs-on-vercel): Deploy a Next.js application to Vercel with a dependable production workflow.
+- [React Performance Optimization: 15 Proven Techniques](https://byte.surajx.in/blog/react-performance-optimization-techniques): Improve React performance with measurement-first techniques that keep code maintainable.
+- [Top 25 VS Code Extensions Every Developer Should Install](https://byte.surajx.in/blog/top-vscode-extensions): A focused list of VS Code extensions that improve formatting, navigation, testing, and workflow.
+- [System Design Basics Every Software Engineer Should Know](https://byte.surajx.in/blog/system-design-basics): Build a practical mental model for availability, scale, data, and system trade-offs.
+- [How to Make Your First Open Source Contribution on GitHub](https://byte.surajx.in/blog/first-open-source-contribution): Find a welcoming project, make a useful contribution, and submit your first pull request.
+- [Docker for Beginners: Learn Containers from Scratch](https://byte.surajx.in/blog/docker-for-beginners): Learn what containers solve and how Docker makes development environments repeatable.
+- [Git and GitHub for Beginners: Complete Step-by-Step Guide](https://byte.surajx.in/blog/git-github-for-beginners): Learn the essential Git workflow and confidently collaborate with GitHub.
+- [How to Build Your First REST API with Node.js and Express](https://byte.surajx.in/blog/first-rest-api-node-express): Build a small, well-structured REST API with Express and understand each moving part.
+- [TypeScript vs JavaScript: Which Should You Learn in 2026?](https://byte.surajx.in/blog/typescript-vs-javascript-2026): Compare JavaScript and TypeScript and choose the right starting point for your goals.
+- [JavaScript Array Methods Every Developer Should Master](https://byte.surajx.in/blog/javascript-array-methods): A practical guide to map, filter, reduce, find, and the other array methods used every day.
+- [Next.js App Router: Everything You Need to Know](https://byte.surajx.in/blog/nextjs-app-router-everything): Understand layouts, pages, server components, and routing in the modern Next.js App Router.
+- [React Hooks Explained: A Complete Beginner's Guide](https://byte.surajx.in/blog/react-hooks-explained): Learn React Hooks from first principles with practical patterns you can use today.
+- [Using AI code review without losing your judgment](https://byte.surajx.in/blog/ai-code-review): A practical workflow for using AI tools to spot issues while keeping engineering decisions in human hands.
+- [Async/await without the mystery](https://byte.surajx.in/blog/async-await-without-mystery): Understand promises and asynchronous JavaScript with a mental model you can apply immediately.
+- [SEO that fits naturally into a Next.js app](https://byte.surajx.in/blog/nextjs-seo): A field guide to metadata, structured data, and static pages in the App Router.
+- [A practical guide to React Hooks](https://byte.surajx.in/blog/react-hooks-guide): Learn how to choose, compose, and reason about React Hooks without turning components into a maze.
+
+## Optional
+
+- [Categories](https://byte.surajx.in/categories): Browse articles by category.
+- [About](https://byte.surajx.in/about): About the byte blog.
+- [RSS Feed](https://byte.surajx.in/rss.xml): Subscribe to new articles.
