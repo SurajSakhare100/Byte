@@ -1,0 +1,194 @@
+# byte
+
+> Technical tutorials and articles on modern software development — covering programming, AI, web development, mobile development, cloud technologies, and open source.
+
+byte is a tech blog with practical engineering articles, from framework fundamentals to shipping smarter systems. This file expands on llms.txt with full descriptions, categories, tags, publish dates, and read times for every article.
+
+Site: https://byte.surajx.in
+Blog index: https://byte.surajx.in/blog
+Categories: https://byte.surajx.in/categories
+About: https://byte.surajx.in/about
+RSS: https://byte.surajx.in/rss.xml
+Contact: https://byte.surajx.in/contact
+
+---
+
+## Redis Pub/Sub Explained - Build Real-Time Apps with Redis
+URL: https://byte.surajx.in/blog/redis-pubsub-explained
+Category: Redis · Tags: Redis, Pub/Sub, DevOps, WebSockets
+Published: Jul 15, 2026 · 8 min read
+Understand Redis Pub/Sub internals and use it to build real-time features like chat, notifications, and live updates. Covers publish/subscribe basics, PSUBSCRIBE pattern matching, a Node.js chat example with ioredis and WebSockets, why Pub/Sub is needed when scaling horizontally across server instances, common use cases (notifications, presence, dashboards, cache invalidation), its limitations (no persistence, no delivery guarantees, no consumer groups), and when to use Redis Streams instead.
+
+## Google AdSense for Developers: How to Monetize Your Tech Blog
+URL: https://byte.surajx.in/blog/google-adsense-for-developers
+Category: Career · Tags: AdSense, Blogging, Monetization
+Published: Jan 29, 2026 · 7 min read
+Prepare a technical blog for advertising while keeping the reading experience and policy compliance first. Walks through prerequisites before applying, account setup, site verification, the review process and common rejection reasons, choosing auto vs manual ad placement, where ads belong on a technical blog, getting paid, and tracking performance metrics like RPM and CTR.
+
+## How to Optimize Website Performance for Better Core Web Vitals
+URL: https://byte.surajx.in/blog/optimize-core-web-vitals
+Category: Performance · Tags: Performance, Core Web Vitals, SEO
+Published: Jan 28, 2026 · 8 min read
+Improve loading, responsiveness, and visual stability with a measurement-led performance workflow focused on Core Web Vitals (LCP, INP, CLS) and related optimization techniques.
+
+## Complete Frontend Developer Roadmap for 2026
+URL: https://byte.surajx.in/blog/frontend-developer-roadmap-2026
+Category: Career · Tags: Frontend, Career, JavaScript
+Published: Jan 27, 2026 · 10 min read
+A practical path from HTML and CSS foundations to modern frontend application development, covering the skills and tools a frontend developer should learn in order.
+
+## Best Free AI Tools for Developers in 2026
+URL: https://byte.surajx.in/blog/best-free-ai-tools-developers-2026
+Category: AI · Tags: AI, Developer Tools, Productivity
+Published: Jan 26, 2026 · 8 min read
+A practical way to assess free AI tools for coding, research, testing, and documentation.
+
+## How to Create an SEO-Friendly Next.js Blog Using MDX
+URL: https://byte.surajx.in/blog/seo-friendly-nextjs-mdx-blog
+Category: Next.js · Tags: Next.js, MDX, SEO
+Published: Jan 25, 2026 · 9 min read
+Build a static MDX blog with strong metadata, structured data, RSS, and a fast reading experience.
+
+## DSA Roadmap for Beginners: Crack Coding Interviews Faster
+URL: https://byte.surajx.in/blog/dsa-roadmap-for-beginners
+Category: Career · Tags: DSA, Interviews, Career
+Published: Jan 24, 2026 · 9 min read
+A realistic roadmap for learning data structures and algorithms through deliberate practice, aimed at coding interview preparation.
+
+## Top 50 Linux Commands Every Developer Should Know
+URL: https://byte.surajx.in/blog/top-linux-commands-developers
+Category: Linux · Tags: Linux, Terminal, Developer Tools
+Published: Jan 23, 2026 · 18 min read
+Learn the Linux commands that make navigation, files, processes, and networking easier — a reference-style roundup of the top 50 commands.
+
+## GitHub Actions Tutorial: Automate Your Workflow with CI/CD
+URL: https://byte.surajx.in/blog/github-actions-cicd-tutorial
+Category: DevOps · Tags: GitHub Actions, CI/CD, DevOps
+Published: Jan 22, 2026 · 8 min read
+Create a dependable GitHub Actions workflow for testing, checking, and deploying code.
+
+## Firebase vs Supabase: Which Backend Should You Choose?
+URL: https://byte.surajx.in/blog/firebase-vs-supabase
+Category: Backend · Tags: Firebase, Supabase, Backend
+Published: Jan 21, 2026 · 7 min read
+Compare Firebase and Supabase by data model, authentication, hosting, and team needs to help pick the right backend.
+
+## How to Build a Full-Stack Application with Next.js
+URL: https://byte.surajx.in/blog/build-full-stack-nextjs-app
+Category: Next.js · Tags: Next.js, Full Stack, React
+Published: Jan 20, 2026 · 10 min read
+Plan a full-stack Next.js application with routes, data boundaries, validation, and deployment.
+
+## Cursor AI Complete Guide: Features, Tips, and Best Practices
+URL: https://byte.surajx.in/blog/cursor-ai-complete-guide
+Category: AI · Tags: Cursor, AI, Developer Tools
+Published: Jan 19, 2026 · 8 min read
+Use Cursor AI effectively with focused context, clear prompts, and disciplined review.
+
+## Best AI Coding Assistants Compared: ChatGPT, Claude, Cursor, and GitHub Copilot
+URL: https://byte.surajx.in/blog/best-ai-coding-assistants-compared
+Category: AI · Tags: AI, Developer Tools, Productivity
+Published: Jan 18, 2026 · 9 min read
+Compare popular AI coding tools by workflow, context, privacy, and review discipline.
+
+## React Native vs Flutter: Which Is Better in 2026?
+URL: https://byte.surajx.in/blog/react-native-vs-flutter-2026
+Category: Mobile Development · Tags: React Native, Flutter, Mobile
+Published: Jan 17, 2026 · 8 min read
+Compare React Native and Flutter across language, ecosystem, UI, and team fit.
+
+## How to Deploy a Next.js App on Vercel
+URL: https://byte.surajx.in/blog/deploy-nextjs-on-vercel
+Category: Next.js · Tags: Next.js, Vercel, Deployment
+Published: Jan 16, 2026 · 9 min read
+Deploy a Next.js application to Vercel with a dependable production workflow.
+
+## React Performance Optimization: 15 Proven Techniques
+URL: https://byte.surajx.in/blog/react-performance-optimization-techniques
+Category: React · Tags: React, Performance, Web Vitals
+Published: Jan 15, 2026 · 11 min read
+Improve React performance with measurement-first techniques that keep code maintainable.
+
+## Top 25 VS Code Extensions Every Developer Should Install
+URL: https://byte.surajx.in/blog/top-vscode-extensions
+Category: Developer Tools · Tags: VS Code, Tools, Productivity
+Published: Jan 14, 2026 · 7 min read
+A focused list of VS Code extensions that improve formatting, navigation, testing, and workflow.
+
+## System Design Basics Every Software Engineer Should Know
+URL: https://byte.surajx.in/blog/system-design-basics
+Category: System Design · Tags: System Design, Backend, Architecture
+Published: Jan 13, 2026 · 10 min read
+Build a practical mental model for availability, scale, data, and system trade-offs.
+
+## How to Make Your First Open Source Contribution on GitHub
+URL: https://byte.surajx.in/blog/first-open-source-contribution
+Category: Open Source · Tags: Open Source, GitHub, Career
+Published: Jan 12, 2026 · 6 min read
+Find a welcoming project, make a useful contribution, and submit your first pull request.
+
+## Docker for Beginners: Learn Containers from Scratch
+URL: https://byte.surajx.in/blog/docker-for-beginners
+Category: Docker · Tags: Docker, DevOps, Containers
+Published: Jan 11, 2026 · 8 min read
+Learn what containers solve and how Docker makes development environments repeatable.
+
+## Git and GitHub for Beginners: Complete Step-by-Step Guide
+URL: https://byte.surajx.in/blog/git-github-for-beginners
+Category: Git · Tags: Git, GitHub, Beginner
+Published: Jan 10, 2026 · 9 min read
+Learn the essential Git workflow and confidently collaborate with GitHub.
+
+## How to Build Your First REST API with Node.js and Express
+URL: https://byte.surajx.in/blog/first-rest-api-node-express
+Category: Node.js · Tags: Node.js, Express, API
+Published: Jan 9, 2026 · 9 min read
+Build a small, well-structured REST API with Express and understand each moving part.
+
+## TypeScript vs JavaScript: Which Should You Learn in 2026?
+URL: https://byte.surajx.in/blog/typescript-vs-javascript-2026
+Category: TypeScript · Tags: TypeScript, JavaScript, Career
+Published: Jan 8, 2026 · 6 min read
+Compare JavaScript and TypeScript and choose the right starting point for your goals.
+
+## JavaScript Array Methods Every Developer Should Master
+URL: https://byte.surajx.in/blog/javascript-array-methods
+Category: JavaScript · Tags: JavaScript, Arrays, Beginner
+Published: Jan 7, 2026 · 7 min read
+A practical guide to map, filter, reduce, find, and the other array methods used every day.
+
+## Next.js App Router: Everything You Need to Know
+URL: https://byte.surajx.in/blog/nextjs-app-router-everything
+Category: Next.js · Tags: Next.js, App Router, React
+Published: Jan 6, 2026 · 10 min read
+Understand layouts, pages, server components, and routing in the modern Next.js App Router.
+
+## React Hooks Explained: A Complete Beginner's Guide
+URL: https://byte.surajx.in/blog/react-hooks-explained
+Category: React · Tags: React, Hooks, Frontend
+Published: Jan 5, 2026 · 8 min read
+Learn React Hooks from first principles with practical patterns you can use today.
+
+## Using AI code review without losing your judgment
+URL: https://byte.surajx.in/blog/ai-code-review
+Category: AI · Tags: AI, Code Review, Developer Tools
+Published: Mar 12, 2025 · 6 min read
+A practical workflow for using AI tools to spot issues while keeping engineering decisions in human hands.
+
+## Async/await without the mystery
+URL: https://byte.surajx.in/blog/async-await-without-mystery
+Category: JavaScript · Tags: JavaScript, Async, Web APIs
+Published: Mar 1, 2025 · 5 min read
+Understand promises and asynchronous JavaScript with a mental model you can apply immediately.
+
+## SEO that fits naturally into a Next.js app
+URL: https://byte.surajx.in/blog/nextjs-seo
+Category: Next.js · Tags: Next.js, SEO, Performance
+Published: Feb 18, 2025 · 6 min read
+A field guide to metadata, structured data, and static pages in the App Router.
+
+## A practical guide to React Hooks
+URL: https://byte.surajx.in/blog/react-hooks-guide
+Category: React · Tags: React, Hooks, JavaScript
+Published: Jan 15, 2025 · 7 min read
+Learn how to choose, compose, and reason about React Hooks without turning components into a maze.
