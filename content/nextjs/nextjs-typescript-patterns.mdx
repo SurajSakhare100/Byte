@@ -1,0 +1,224 @@
+---
+title: "TypeScript Patterns for Next.js: Types That Actually Help"
+description: Practical TypeScript patterns for Next.js — typing params, searchParams, server actions, fetch responses, and component props correctly.
+slug: nextjs-typescript-patterns
+date: 2025-07-15
+updated: 2025-07-15
+author: byte team
+category: Next.js
+tags: [Next.js, TypeScript, React]
+keywords:
+  - nextjs typescript
+  - nextjs typescript types
+  - typescript server components
+  - nextjs params type
+  - nextjs generics
+coverImage: /assets/articles/nextjs/nextjs-typescript-cover.webp
+readingTime: 8 min read
+featured: false
+draft: false
+---
+
+Next.js provides built-in TypeScript support, configuring compilation settings automatically when you create a project. However, typing App Router features — such as dynamic route parameters, query parameters, search parameters, metadata configurations, and server actions — requires specific patterns to avoid casting mistakes.
+
+---
+
+## Strongly Typing Pages and Layouts
+
+Every page and layout in the App Router receives parameters as route props. Because routes are dynamic, these props arrive as promises. You must type these props to ensure you access existing parameters correctly.
+
+### Dynamic Segment Route Types (Pages)
+If you have a route `/blog/[slug]`, the page component receives `params` containing `slug`:
+
+```tsx
+// app/blog/[slug]/page.tsx
+interface BlogPostParams {
+  slug: string;
+}
+
+interface PageProps {
+  params: Promise<BlogPostParams>;
+  searchParams: Promise<{ [key: string]: string | string[] | undefined }>;
+}
+
+export default async function BlogPostPage({ params, searchParams }: PageProps) {
+  const { slug } = await params;
+  const { page, sort } = await searchParams;
+
+  // page could be undefined, string, or string[]
+  const currentPage = typeof page === 'string' ? parseInt(page, 10) : 1;
+
+  return (
+    <div className="p-8">
+      <h1>Blog Post: {slug}</h1>
+      <p>Page Index: {currentPage}</p>
+      <p>Sort Option: {sort}</p>
+    </div>
+  );
+}
+```
+
+### Catch-All Dynamic Route Types
+For catch-all routes `/docs/[...slug]`, parameters are returned as arrays:
+
+```tsx
+// app/docs/[...slug]/page.tsx
+interface DocsParams {
+  slug: string[]; // e.g. /docs/installation/nextjs returns ['installation', 'nextjs']
+}
+
+interface PageProps {
+  params: Promise<DocsParams>;
+}
+
+export default async function DocsPage({ params }: PageProps) {
+  const { slug } = await params;
+  const breadcrumb = slug.join(' > ');
+
+  return <div>Navigation: {breadcrumb}</div>;
+}
+```
+
+---
+
+## Typing Dynamic Metadata Generators
+
+When generating metadata dynamically for search engine optimization (SEO), type your metadata generator to match the page parameters:
+
+```tsx
+// app/blog/[slug]/page.tsx
+import type { Metadata, ResolvingMetadata } from 'next';
+
+interface BlogPostParams {
+  slug: string;
+}
+
+interface Props {
+  params: Promise<BlogPostParams>;
+}
+
+// Typing dynamic metadata creation
+export async function generateMetadata(
+  { params }: Props,
+  parent: ResolvingMetadata
+): Promise<Metadata> {
+  const { slug } = await params;
+
+  // Retrieve post details
+  const post = await fetch(`https://api.example.com/posts/${slug}`).then((r) =>
+    r.json()
+  );
+
+  // Read resolved metadata settings from parent components
+  const parentMetadata = await parent;
+  const siteTitle = parentMetadata.title?.absolute || 'Byte';
+
+  return {
+    title: `${post.title} | ${siteTitle}`,
+    description: post.summary,
+    openGraph: {
+      images: [post.coverUrl, ...(parentMetadata.openGraph?.images || [])],
+    },
+  };
+}
+```
+
+---
+
+## Typing Server Actions and Form State
+
+Server actions returning state to hooks like `useActionState` must be typed to map input formats and output schemas correctly.
+
+Create a shared definition file:
+
+```ts
+// types/action-state.ts
+export interface FormActionState {
+  success: boolean;
+  message: string;
+  errors?: Record<string, string[]>;
+}
+```
+
+Connect the action implementation using the defined state shape:
+
+```ts
+// app/actions/subscribe.ts
+'use server';
+
+import { z } from 'zod';
+import type { FormActionState } from '@/types/action-state';
+
+const EmailSchema = z.object({
+  email: z.string().email('Please enter a valid email address'),
+});
+
+export async function subscribeNewsletterAction(
+  prevState: FormActionState,
+  formData: FormData
+): Promise<FormActionState> {
+  const email = formData.get('email');
+
+  const result = EmailSchema.safeParse({ email });
+
+  if (!result.success) {
+    return {
+      success: false,
+      message: 'Validation failed.',
+      errors: result.error.flatten().fieldErrors,
+    };
+  }
+
+  try {
+    // Add newsletter subscription logic here
+    return {
+      success: true,
+      message: 'Subscription successful! Check your inbox.',
+    };
+  } catch (error) {
+    return {
+      success: false,
+      message: 'Server error. Please try again later.',
+    };
+  }
+}
+```
+
+---
+
+## Enforcing Strict Compiler Settings
+
+To catch structural errors during code compilation, update your `tsconfig.json` to enable strict TypeScript settings:
+
+```json
+{
+  "compilerOptions": {
+    "strict": true,
+    "noImplicitAny": true,
+    "strictNullChecks": true,
+    "noUncheckedIndexedAccess": true
+  }
+}
+```
+
+### Why `noUncheckedIndexedAccess` is Essential
+By default, TypeScript assumes that accessing any key in an index signature (like `searchParams`) returns an existing value. This can cause runtime crashes:
+
+```ts
+const userMap: Record<string, string> = { '123': 'Alice' };
+
+// Without noUncheckedIndexedAccess: TypeScript types 'name' as 'string'
+// With noUncheckedIndexedAccess: TypeScript types 'name' as 'string | undefined'
+const name = userMap['456']; 
+console.log(name.toUpperCase()); // Crashes at runtime if not checked
+```
+
+Enabling this setting forces you to check for undefined variables before executing logic.
+
+For how TypeScript fits into data fetching patterns, see [Next.js data fetching](/blog/nextjs-data-fetching). For server action typing in context, see [Server Actions guide](/blog/nextjs-server-actions).
+
+## Related Articles
+
+- [Data Fetching in Next.js: Patterns for Every Use Case](/blog/nextjs-data-fetching)
+- [Server Actions in Next.js: Mutations Without an API Layer](/blog/nextjs-server-actions)
+- [Next.js App Router: Everything You Need to Know](/blog/nextjs-app-router-everything)

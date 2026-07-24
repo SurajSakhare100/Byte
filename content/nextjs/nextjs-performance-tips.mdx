@@ -1,0 +1,201 @@
+---
+title: "Next.js Performance Tips: What Actually Moves the Needle"
+description: Practical techniques to speed up Next.js apps — from bundle analysis to streaming, caching, and Core Web Vitals tuning.
+slug: nextjs-performance-tips
+date: 2025-04-02
+updated: 2025-04-02
+author: byte team
+category: Next.js
+tags: [Next.js, Performance, Core Web Vitals]
+keywords:
+  - nextjs performance
+  - core web vitals nextjs
+  - nextjs bundle size
+  - nextjs streaming
+  - nextjs cache
+coverImage: /assets/articles/nextjs/nextjs-performance-cover.webp
+readingTime: 9 min read
+featured: true
+draft: false
+---
+
+Performance in a Next.js app isn't about any single technique — it's about removing weight and latency at each layer: the JavaScript bundle, the server response, the images, the fonts, and the rendering strategy. Most teams fix the obvious things (compress images, use a CDN) but leave significant wins on the table. Here's where the real gains are.
+
+## Analyzing the Bundle
+
+Before you start optimizing your application, you need to understand where the weight is. Next.js does a good job of splitting your application into pages and route-specific bundles, but it cannot prevent you from importing bloated dependencies.
+
+The `@next/bundle-analyzer` package generates a visual map of the compiled JavaScript files:
+
+```bash
+npm install --save-dev @next/bundle-analyzer
+```
+
+Update your `next.config.ts` configuration to integrate the analyzer:
+
+```ts
+import type { NextConfig } from 'next';
+import bundleAnalyzer from '@next/bundle-analyzer';
+
+const withBundleAnalyzer = bundleAnalyzer({
+  enabled: process.env.ANALYZE === 'true',
+});
+
+const nextConfig: NextConfig = {
+  // Your base config settings here
+};
+
+export default withBundleAnalyzer(nextConfig);
+```
+
+To run the analysis, set the environment variable and trigger a production build:
+
+```bash
+ANALYZE=true npm run build
+```
+
+This command opens interactive treemaps in your browser showing the contents of each bundle. If you notice a single utility library taking up 100kb, check if it can be replaced with a lighter alternative or if you are importing the entire library instead of tree-shaking specific modules.
+
+---
+
+## Reducing Client Bundles with Dynamic Imports
+
+If you have heavy components that are not required for the initial render (for example, a rich text editor inside a drawer, a feedback modal, or complex charts), load them on demand.
+
+Using `next/dynamic`, you can split these components into their own JavaScript chunks, loading them only when needed:
+
+```tsx
+'use client';
+
+import { useState } from 'react';
+import dynamic from 'next/dynamic';
+
+// Heavy chart component is loaded asynchronously
+const FinancialChart = dynamic(() => import('@/components/FinancialChart'), {
+  loading: () => <div className="h-64 animate-pulse bg-gray-200 rounded" />,
+  ssr: false, // Prevents loading on the server for browser-only libraries
+});
+
+export default function DashboardSummary() {
+  const [showChart, setShowChart] = useState(false);
+
+  return (
+    <div>
+      <button onClick={() => setShowChart(true)}>
+        Load Chart Data
+      </button>
+
+      {showChart && <FinancialChart />}
+    </div>
+  );
+}
+```
+
+By adding `ssr: false`, we prevent Next.js from rendering the component on the server. This is useful for third-party libraries that access browser-only globals like `window` or `document`.
+
+---
+
+## The Four Next.js Cache Layers
+
+Next.js introduces several caching layers that run out-of-the-box. To maintain a fast application, you should understand how they behave:
+
+| Cache Layer | What it caches | Location | Duration | Invalidation |
+|---|---|---|---|---|
+| **Request Memoization** | Duplicate API calls | Server | Single request | Auto-cleared after request |
+| **Data Cache** | Fetched data values | Server | Persistent | Revalidate tags or time |
+| **Full Route Cache** | Rendered HTML & Payload | Server | Persistent | Revalidate or config change |
+| **Router Cache** | Visited route segments | Client | Session | Time-based (30s to 5m) |
+
+### 1. Request Memoization
+React extends the global `fetch` API to automatically cache identical GET requests during a single render pass on the server. You can call the same API from your page, header, and sidebar, and Next.js will execute only one network request.
+
+### 2. Data Cache
+This cache persists data across multiple user requests. You configure the lifetime of this cache at the fetch level:
+
+```ts
+// Cache data indefinitely until manually revalidated
+fetch('https://api.example.com/data', { cache: 'force-cache' });
+
+// Cache data for at most 1 hour
+fetch('https://api.example.com/data', { next: { revalidate: 3600 } });
+
+// Opt out of caching (always fetch fresh data)
+fetch('https://api.example.com/data', { cache: 'no-store' });
+```
+
+---
+
+## Streaming HTML with React Suspense
+
+If a page has slow data fetching queries, you don't want the user to wait on a blank screen. Streaming allows you to send the HTML layout shell first, and then stream the slow dynamic data chunks as they resolve on the server.
+
+```tsx
+import { Suspense } from 'react';
+import SlowList from './SlowList';
+import ListPlaceholder from './ListPlaceholder';
+
+export default async function StorePage() {
+  return (
+    <main className="p-8">
+      <h1>Store Overview</h1>
+      <p>Quick render content goes here.</p>
+
+      <Suspense fallback={<ListPlaceholder />}>
+        <SlowList />
+      </Suspense>
+    </main>
+  );
+}
+```
+
+The server sends the header, paragraph, and `ListPlaceholder` instantly. When `SlowList` finishes loading its data, Next.js streams the HTML to the browser and swaps it into place automatically.
+
+---
+
+## Optimizing Fonts and Third-party Scripts
+
+### Loading Fonts via `next/font`
+Avoid loading Google Fonts using external links in your `<head>` tag. That introduces a network connection delay that blocks page rendering. Instead, use `next/font`:
+
+```ts
+import { Outfit } from 'next/font/google';
+
+export const outfit = Outfit({
+  subsets: ['latin'],
+  display: 'swap',
+  weight: ['400', '700'],
+});
+```
+
+Apply `outfit.className` to the `<body>` element of your layout. Next.js downloads the font file at build time and self-hosts it alongside your static assets, eliminating any external connections.
+
+### Deferring Scripts with `next/script`
+For third-party integrations (like Google Analytics, chat widgets, or conversion pixels), use `next/script` to load them without blocking page interactivity:
+
+```tsx
+import Script from 'next/script';
+
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en">
+      <body>
+        {children}
+        <Script
+          src="https://www.googletagmanager.com/gtag/js?id=G-XXXXXX"
+          strategy="afterInteractive"
+        />
+      </body>
+    </html>
+  );
+}
+```
+
+Using `strategy="afterInteractive"` tells Next.js to load the script after the page is hydrated, prioritizing your application code first.
+
+For how [middleware](/blog/nextjs-middleware-guide) can affect performance at the edge, and how [SEO](/blog/nextjs-seo) ties into Core Web Vitals rankings, see the respective guides.
+
+## Related Articles
+
+- [Next.js Image Optimization: Getting the Most Out of next/image](/blog/nextjs-image-optimization)
+- [Next.js Middleware: Edge Logic Without a Separate Server](/blog/nextjs-middleware-guide)
+- [Next.js App Router: Everything You Need to Know](/blog/nextjs-app-router-everything)

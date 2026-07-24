@@ -1,0 +1,172 @@
+---
+title: "Hash Maps Under the Hood: Collisions, Chaining, and Resizing"
+description: Deep dive into hash functions, cryptographic vs non-cryptographic hashes, collision resolution using chaining or open addressing, and load factor resizing.
+slug: dsa-hashing-hashmaps
+date: 2025-10-15
+updated: 2025-10-15
+author: byte team
+category: DSA
+tags: [DSA, Hashing, Performance]
+keywords:
+  - hash map
+  - hash function
+  - hash collision
+  - chaining hashing
+  - load factor hashmap
+  - open addressing
+  - linear probing
+  - dsa
+coverImage: /assets/articles/dsa/dsa-hashing-cover.webp
+readingTime: 12 min read
+featured: false
+draft: false
+---
+
+Hash maps (or Hash Tables, Dictionaries) are the most heavily used data structure in software engineering. They store data in `Key-Value` pairs and support search, insertion, and deletion in **$O(1)$ average time**.
+
+Whether you are caching database queries, counting word frequencies, or building a Two-Sum algorithm, Hash Maps are the go-to tool.
+
+---
+
+## The Illusion of $O(1)$
+
+Under the hood, a Hash Map is literally just an Array. 
+Arrays offer $O(1)$ lookup, but *only* if you know the exact integer index. You cannot ask an array to `get("userZ")`. 
+
+To bridge this gap, Hash Maps use a mathematical **Hash Function** to irreversibly scramble the Key into a massive integer, and then use the Modulo operator to map that integer to a valid Array index.
+
+`Index = HashFunction(Key) % Array_Capacity`
+
+```text
+Key: "userA" -> Hash: 432598 -> Index (Size 10): 8 -> Array[8] = Value
+```
+
+### Cryptographic vs. Non-Cryptographic Hashes
+- **Cryptographic Hashes (SHA-256, MD5):** Designed for security. They are intentionally slow to prevent brute-force attacks and ensure extreme avalanche effects (changing one letter changes the entire hash). They are *never* used for data structure Hash Maps.
+- **Non-Cryptographic Hashes (MurmurHash, CityHash):** Designed for pure speed and uniform distribution. They can hash gigabytes of data per second. Language runtimes (like V8 or the JVM) use these to power their native `Map` or `Dictionary` objects.
+
+---
+
+## Collision Resolution Mechanisms
+
+The Pigeonhole Principle states that if you put 11 pigeons into 10 holes, at least one hole must contain two pigeons. Because the number of possible strings (Keys) is infinite, but the Hash Map array size is finite, **collisions are mathematically guaranteed**.
+
+A collision occurs when two distinct keys hash to the exact same array index. Hash Maps handle this in one of two ways:
+
+### 1. Separate Chaining (Linked Lists)
+Each array index (Bucket) doesn't store a value directly; it stores a pointer to a **Linked List**. If multiple keys collide at Index 3, they are simply appended to the linked list at Index 3.
+
+```text
+Array[3] -> [ Key: "userA" | Val: 10 ] -> [ Key: "userZ" | Val: 99 ] -> NULL
+```
+- **Pros:** Deletions are trivial. The map never "fills up" entirely.
+- **Cons:** Pointer chasing destroys CPU cache locality, slowing down lookups.
+
+### 2. Open Addressing (Linear Probing)
+Used by modern, high-performance Hash Maps (like Python's `dict`). The array stores the values directly without Linked Lists. If a collision occurs, the hash map simply probes the *next* adjacent index in the array until it finds an empty slot.
+
+```text
+Array[3] - occupied -> check Array[4] - empty -> store there!
+```
+- **Pros:** Fantastic cache locality. Extremely fast.
+- **Cons:** Deletions are complex (requires "Tombstone" markers). Subject to clustering.
+
+---
+
+## Load Factor and Array Resizing
+
+The **Load Factor** (`alpha`) is the ratio of stored items to the array's capacity:
+
+`Load_Factor = Number_of_Items / Capacity`
+
+As the load factor increases, the array fills up, collisions skyrocket, and the $O(1)$ performance degrades into $O(N)$ as the algorithm searches through long chains or heavily clustered open-addressed blocks.
+
+To prevent this, most hash maps resize their underlying array when the load factor exceeds a threshold (typically **0.75**):
+
+1. Allocate a completely new array with **double** the capacity.
+2. Re-hash every single key from the old array, modulo it against the *new* capacity, and insert it into the new array.
+3. Garbage collect the old array.
+
+Resizing takes $O(N)$ time. However, because it happens exponentially less often as the array grows, insertions still maintain an **$O(1)$ amortized time**.
+
+---
+
+## Custom Hash Map Implementation (TypeScript)
+
+Here is a simplified hash map implementation demonstrating Separate Chaining:
+
+```ts
+class HashNode<K, V> {
+  key: K;
+  value: V;
+  next: HashNode<K, V> | null = null;
+  constructor(key: K, value: V) {
+    this.key = key;
+    this.value = value;
+  }
+}
+
+class CustomHashMap<K, V> {
+  private buckets: Array<HashNode<K, V> | null>;
+  private capacity: number;
+  private count: number;
+
+  constructor(initialCapacity = 16) {
+    this.capacity = initialCapacity;
+    this.buckets = new Array(this.capacity).fill(null);
+    this.count = 0;
+  }
+
+  // A basic string hashing algorithm (djb2 variant)
+  private getHashIndex(key: K): number {
+    const keyStr = String(key);
+    let hash = 5381;
+    for (let i = 0; i < keyStr.length; i++) {
+      hash = (hash * 33) ^ keyStr.charCodeAt(i);
+    }
+    return Math.abs(hash) % this.capacity;
+  }
+
+  public put(key: K, value: V): void {
+    const index = this.getHashIndex(key);
+    let head = this.buckets[index];
+
+    // Traverse the chain to check for existing key updates
+    while (head !== null) {
+      if (head.key === key) {
+        head.value = value;
+        return;
+      }
+      head = head.next;
+    }
+
+    // Insert new node at the front of the list for O(1) insertion
+    const newNode = new HashNode(key, value);
+    newNode.next = this.buckets[index];
+    this.buckets[index] = newNode;
+    this.count++;
+  }
+
+  public get(key: K): V | undefined {
+    const index = this.getHashIndex(key);
+    let head = this.buckets[index];
+
+    // Traverse the chain to find the key
+    while (head !== null) {
+      if (head.key === key) {
+        return head.value;
+      }
+      head = head.next;
+    }
+    return undefined; // Not found
+  }
+}
+```
+
+For memory details on array layouts, see [arrays guide](/blog/dsa-arrays-guide).
+
+## Related Articles
+
+- [Mastering Arrays: Contiguous Memory and Dynamic Scaling](/blog/dsa-arrays-guide)
+- [Binary Search: Mastering Monotonic Spaces and Boundary Conditions](/blog/dsa-binary-search)
+- [Demystifying Linked Lists: Traversal, Pointers, and Reversal](/blog/dsa-linked-lists)

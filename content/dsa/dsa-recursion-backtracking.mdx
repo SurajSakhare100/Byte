@@ -1,0 +1,189 @@
+---
+title: "Recursion & Backtracking: State Spaces, Memoization, and N-Queens"
+description: Master call stack recursion mechanics, base cases, state space search using backtracking, and dynamic programming optimization via memoization.
+slug: dsa-recursion-backtracking
+date: 2025-09-24
+updated: 2025-09-24
+author: byte team
+category: DSA
+tags: [DSA, Recursion, Algorithms]
+keywords:
+  - recursion
+  - backtracking
+  - call stack recursion
+  - state space
+  - recursion base case
+  - memoization
+  - n-queens problem
+  - dynamic programming
+coverImage: /assets/articles/dsa/dsa-recursion-cover.webp
+readingTime: 12 min read
+featured: false
+draft: false
+---
+
+Recursion is a declarative programming technique where a function calls itself to solve smaller instances of the same problem. Rather than telling the computer *how* to iterate using a `for` loop, you tell the computer *what* the problem is, and let the system's call stack handle the iteration.
+
+Backtracking builds on recursion, searching for solutions by exploring different options in a decision tree, and "rolling back" (undoing) paths that lead to dead ends.
+
+---
+
+## Anatomy of a Recursive Call
+
+Every valid recursive function must define two key blocks to prevent infinite loops (Stack Overflows):
+1. **The Base Case:** The exit condition that stops the recursion. It provides the final answer to the smallest possible sub-problem.
+2. **The Recursive Step:** The block where the function calls itself with modified parameters, moving one step closer to the base case.
+
+```text
+factorial(3) -> calls factorial(2) -> calls factorial(1) -> returns 1
+                                                              |
+factorial(3) = 6 <- returns 6 <- factorial(2) = 2 <- returns 2
+```
+
+Because every function call is pushed onto the memory stack, a recursion depth of $N$ takes **$O(N)$ auxiliary space**.
+
+---
+
+## Memoization: The Bridge to Dynamic Programming
+
+A common pitfall of recursion is **Overlapping Subproblems**. Consider the recursive Fibonacci function:
+
+```ts
+function fib(n: number): number {
+  if (n <= 1) return n; // Base Case
+  return fib(n - 1) + fib(n - 2); // Recursive Step
+}
+```
+
+This naive approach calculates `fib(3)` multiple times. Its time complexity is a massive **$O(2^N)$**, making it impossible to compute `fib(50)`.
+
+We solve this using **Memoization** (Top-Down Dynamic Programming). We store the results of expensive function calls in a Hash Map and return the cached result if the same inputs occur again.
+
+```ts
+function fibMemo(n: number, memo: Record<number, number> = {}): number {
+  if (n in memo) return memo[n]; // Return cached result
+  if (n <= 1) return n;
+
+  // Compute, cache, and return
+  memo[n] = fibMemo(n - 1, memo) + fibMemo(n - 2, memo);
+  return memo[n];
+}
+```
+This reduces the time complexity from $O(2^N)$ to **$O(N)$**!
+
+---
+
+## Backtracking: Searching State Spaces
+
+Backtracking is a systematic trial-and-error approach. It explores a decision tree (state space) and backs up if a path does not lead to a valid solution.
+
+```text
+                   Root (Start)
+                  /            \
+            Choose Option A    Choose Option B
+               /       \             \
+            Valid?    Invalid      Invalid
+            (Done)    (Go Back)    (Go Back)
+```
+
+Common backtracking scenarios include:
+- Finding a path through a maze.
+- Solving Sudoku boards.
+- Generating Subsets, Combinations, or Permutations.
+
+---
+
+## Backtracking Example 1: Permutations
+
+Here is a standard backtracking algorithm to generate all possible permutations of an array of distinct integers:
+
+```ts
+function permute(nums: number[]): number[][] {
+  const results: number[][] = [];
+  
+  const backtrack = (currentPath: number[], used: boolean[]) => {
+    // 1. Base Case: Path length matches input length
+    if (currentPath.length === nums.length) {
+      // Push a COPY of the array, not the reference!
+      results.push([...currentPath]);
+      return;
+    }
+
+    for (let i = 0; i < nums.length; i++) {
+      if (used[i]) continue; // Skip already selected elements
+
+      // 2. Choose an Option
+      currentPath.push(nums[i]);
+      used[i] = true;
+
+      // 3. Explore that Path
+      backtrack(currentPath, used);
+
+      // 4. Roll Back the Choice (Undo)
+      currentPath.pop();
+      used[i] = false;
+    }
+  };
+
+  backtrack([], new Array(nums.length).fill(false));
+  return results;
+}
+```
+
+Because generating all options takes **$O(N \times N!)$** time, backtracking is only viable for small input sizes (usually $N \le 12$). 
+
+---
+
+## Backtracking Example 2: The N-Queens Problem
+
+A classic backtracking problem is placing $N$ chess queens on an $N \times N$ chessboard so that no two queens threaten each other.
+
+```ts
+function solveNQueens(n: number): string[][] {
+  const res: string[][] = [];
+  const board = Array.from({ length: n }, () => new Array(n).fill('.'));
+  
+  const cols = new Set<number>();
+  const posDiag = new Set<number>(); // (row + col)
+  const negDiag = new Set<number>(); // (row - col)
+
+  const backtrack = (row: number) => {
+    if (row === n) {
+      res.push(board.map(r => r.join('')));
+      return;
+    }
+
+    for (let col = 0; col < n; col++) {
+      if (cols.has(col) || posDiag.has(row + col) || negDiag.has(row - col)) {
+        continue; // Position is attacked
+      }
+
+      // Choose
+      cols.add(col);
+      posDiag.add(row + col);
+      negDiag.add(row - col);
+      board[row][col] = 'Q';
+
+      // Explore
+      backtrack(row + 1);
+
+      // Rollback
+      cols.delete(col);
+      posDiag.delete(row + col);
+      negDiag.delete(row - col);
+      board[row][col] = '.';
+    }
+  };
+
+  backtrack(0);
+  return res;
+}
+```
+
+For memory stack mechanics behind recursion, see [stacks](/blog/dsa-stacks-lifo). For exploring graph decision trees, see [graph traversals](/blog/dsa-graphs-bfs-dfs).
+
+## Related Articles
+
+- [Understanding Stacks: LIFO Behavior and Allocation Frames](/blog/dsa-stacks-lifo)
+- [Hierarchical Data: Traversing Binary Trees and BST Properties](/blog/dsa-binary-trees)
+- [Graph Traversals: Node Exploration using BFS and DFS](/blog/dsa-graphs-bfs-dfs)

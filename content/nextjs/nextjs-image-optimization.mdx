@@ -1,0 +1,169 @@
+---
+title: "Next.js Image Optimization: Getting the Most Out of next/image"
+description: A practical guide to the next/image component — lazy loading, formats, sizing, and common pitfalls that trip up most teams.
+slug: nextjs-image-optimization
+date: 2025-03-18
+updated: 2025-03-18
+author: byte team
+category: Next.js
+tags: [Next.js, Performance, Images]
+keywords:
+  - nextjs image optimization
+  - next/image component
+  - lazy loading images nextjs
+  - webp nextjs
+  - image performance
+coverImage: /assets/articles/nextjs/nextjs-image-cover.webp
+readingTime: 7 min read
+featured: false
+draft: false
+---
+
+Images are usually the largest assets on a page and one of the easiest places to lose Lighthouse points without realizing it. Next.js ships a built-in `<Image>` component that handles a surprising amount of the hard work: automatic format conversion to WebP/AVIF, lazy loading by default, proper `srcset` generation, and layout-shift prevention through required `width` and `height`. The tricky part isn't using it — it's using it correctly.
+
+## The Problem with Traditional Images
+
+Traditional HTML `<img>` elements suffer from several issues when deployed in modern web applications:
+- **Lack of Modern Formats:** Browsers support WebP and AVIF, which are 30% to 50% smaller than JPEGs or PNGs, but setting these up manually with fallback options is tedious.
+- **Cumulative Layout Shift (CLS):** If the browser does not know the dimensions of an image before downloading it, the page content will jump as it loads, leading to a poor user experience.
+- **Unoptimized Size:** Serving a 4000x3000px image to a mobile device with a 400px wide screen wastes bandwidth and hurts performance.
+- **Lack of Lazy Loading:** Loading all images on a page instantly slows down the initial rendering, even if those images are far below the fold.
+
+The Next.js `next/image` component solves all these problems automatically.
+
+---
+
+## The Anatomy of the Image Component
+
+Here are the key attributes of the `next/image` component:
+
+| Attribute | Type | Required | Description |
+|---|---|---|---|
+| `src` | String / Object | Yes | The source of the image (static import or path string). |
+| `width` | Number | Yes (unless using `fill`) | The intrinsic width of the image. |
+| `height` | Number | Yes (unless using `fill`) | The intrinsic height of the image. |
+| `sizes` | String | No (highly recommended) | Defines responsive sizes to select the correct source file. |
+| `priority` | Boolean | No | Preloads the image. Set to `true` for hero images. |
+| `fill` | Boolean | No | Makes the image absolutely positioned, filling its parent. |
+| `placeholder` | String | No | Image placeholder behavior (e.g. `'blur'` or `'empty'`). |
+| `blurDataURL` | String | No | A base64-encoded image for custom blur-up state. |
+
+---
+
+## Sizing and Responsive Design
+
+One of the most confusing parts of `next/image` is how it handles sizes. You have two main layouts: fixed aspect ratio (using `width` and `height`) and responsive container fill (using `fill`).
+
+### Fixed Aspect Ratio Sizing
+When you know the aspect ratio, provide the `width` and `height`. This defines the image aspect ratio, which prevents cumulative layout shifts.
+
+```tsx
+import Image from 'next/image';
+
+export default function BlogPostCard() {
+  return (
+    <div className="card">
+      <Image
+        src="/assets/articles/nextjs/nextjs-image-cover.webp"
+        alt="Visual representation of coding structure"
+        width={800}
+        height={450}
+        className="rounded-lg object-cover"
+      />
+      <h3>Understanding CSS Grids</h3>
+    </div>
+  );
+}
+```
+
+### Responsive Container Sizing (Fill Layout)
+If you don't know the exact size of the image container in advance (for example, when using a layout with dynamic aspect ratios or grid items), use the `fill` property.
+
+When using `fill`, the image is absolutely positioned (`position: absolute`) within its parent container. Therefore, **the parent container must have `position: relative`, `position: absolute`, or `position: fixed`** and a defined height.
+
+```tsx
+import Image from 'next/image';
+
+export default function HeroSection() {
+  return (
+    <div className="relative w-full h-[400px] md:h-[600px]">
+      <Image
+        src="/assets/articles/nextjs/nextjs-image-cover.webp"
+        alt="Hero Cover Image"
+        fill
+        priority
+        className="object-cover"
+        sizes="100vw"
+      />
+    </div>
+  );
+}
+```
+
+---
+
+## Why the `sizes` Attribute is Crucial
+
+If you omit the `sizes` attribute on an image with the `fill` attribute, Next.js generates a `srcset` containing multiple responsive widths, but the browser will default to downloading the largest file possible (matching `100vw` or more).
+
+To avoid downloading large images on mobile screens, provide a `sizes` string:
+
+```tsx
+<Image
+  src="/assets/articles/nextjs/nextjs-image-cover.webp"
+  alt="Gallery Image"
+  fill
+  sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+/>
+```
+
+Here is how the browser interprets this:
+- If the screen is under `768px` wide, the image is expected to span the full viewport width (`100vw`). The browser will download a file optimized for that size.
+- If the screen is under `1200px` wide, the image is expected to span half the viewport width (`50vw`).
+- For wider screens, the image is expected to span one-third of the screen width (`33vw`).
+
+This simple line can reduce the download size of your images on mobile devices by over 70%.
+
+---
+
+## Caching and CDN Optimization in `next.config.ts`
+
+By default, Next.js optimizes images on-demand on your server. This execution can consume CPU resources. If you are serving images from external domains (like an S3 bucket or CMS), you must configure them in `next.config.ts`:
+
+```ts
+import type { NextConfig } from 'next';
+
+const nextConfig: NextConfig = {
+  images: {
+    formats: ['image/avif', 'image/webp'],
+    remotePatterns: [
+      {
+        protocol: 'https',
+        hostname: 'images.unsplash.com',
+        pathname: '/**',
+      },
+    ],
+  },
+};
+
+export default nextConfig;
+```
+
+### AVIF vs WebP
+We configured both AVIF and WebP support in `nextConfig`. AVIF compression is generally superior to WebP, reducing image file sizes by an additional 20% while maintaining the same quality. Next.js will negotiate AVIF format if the client browser supports it, falling back to WebP or regular formats.
+
+---
+
+## Common Pitfalls to Avoid in Production
+
+1. **Using Priority on Everything:** Setting `priority` on too many images disables lazy loading and slows down the initial page render. Only use it for above-the-fold images.
+2. **Missing Alt Text:** Always provide descriptive `alt` tags for accessibility. For decorative images, set `alt=""` so screen readers ignore them.
+3. **Invalid Aspect Ratios:** If your container has a different aspect ratio than your image, use the `object-cover` or `object-contain` CSS classes to prevent distortion.
+
+For image performance in the context of a full performance strategy, see [Next.js performance tips](/blog/nextjs-performance-tips). For how images fit into SEO, see the [Next.js SEO guide](/blog/nextjs-seo).
+
+## Related Articles
+
+- [Next.js Performance Tips: What Actually Moves the Needle](/blog/nextjs-performance-tips)
+- [Next.js Middleware: Edge Logic Without a Separate Server](/blog/nextjs-middleware-guide)
+- [SEO that fits naturally into a Next.js app](/blog/nextjs-seo)

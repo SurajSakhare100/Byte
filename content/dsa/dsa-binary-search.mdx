@@ -1,0 +1,166 @@
+---
+title: "Binary Search: Boundary Conditions, Lower Bounds, and Monotonic Spaces"
+description: Master the subtleties of binary search index management, avoiding infinite loops, computing lower/upper bounds, and searching through monotonic decision spaces.
+slug: dsa-binary-search
+date: 2025-10-08
+updated: 2025-10-08
+author: byte team
+category: DSA
+tags: [DSA, Search, Algorithms]
+keywords:
+  - binary search
+  - monotonic search space
+  - dsa search
+  - search algorithms
+  - binary search boundary
+  - upper bound binary search
+  - lower bound binary search
+  - dsa
+coverImage: /assets/articles/dsa/dsa-binary-search-cover.webp
+readingTime: 12 min read
+featured: true
+draft: false
+---
+
+Binary Search is a remarkably efficient algorithm used to find elements in a sorted list. Instead of scanning elements sequentially one by one ($O(N)$), binary search probes the exact middle of the list and uses the sorted property to instantly discard half of the remaining search space.
+
+Because the search space is cut in half at every step ($N \rightarrow N/2 \rightarrow N/4 \rightarrow 1$), the algorithm runs in logarithmic time: **$O(\log N)$**. To put this into perspective, you can find a specific item out of 4 billion sorted items in just 32 operations.
+
+---
+
+## The Standard Implementation and Integer Overflow
+
+Writing a standard binary search seems trivial, but managing the boundary variables (`left`, `right`, and `mid`) perfectly to prevent off-by-one errors and infinite loops is notoriously tricky.
+
+```ts
+function binarySearch(nums: number[], target: number): number {
+  let left = 0;
+  let right = nums.length - 1;
+
+  while (left <= right) {
+    // CRITICAL: Avoid integer overflow! 
+    // Do NOT use: Math.floor((left + right) / 2)
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (nums[mid] === target) {
+      return mid; // Target found
+    } else if (nums[mid] < target) {
+      left = mid + 1; // Target is in the right half
+    } else {
+      right = mid - 1; // Target is in the left half
+    }
+  }
+
+  return -1; // Target not found
+}
+```
+
+### Why `left + (right - left) / 2`?
+In languages with fixed-size 32-bit integers (like Java or C++), if `left` and `right` are both extremely large numbers (e.g., indices near 2 billion), simply adding them together `(left + right)` will exceed the 32-bit integer limit, resulting in a negative overflow number and crashing your program. The subtraction method guarantees you never exceed the maximum boundary.
+
+---
+
+## Advanced: Lower Bound and Upper Bound
+
+Standard binary search stops as soon as it finds the target. But what if the array contains duplicates (e.g., `[1, 2, 4, 4, 4, 5]`) and you want to find the *first* occurrence of `4`? 
+
+### The Lower Bound (First Occurrence)
+To find the lower bound, we don't return immediately when `nums[mid] === target`. Instead, we record the potential answer and keep shrinking the right boundary to see if there is an earlier occurrence.
+
+```ts
+function lowerBound(nums: number[], target: number): number {
+  let left = 0;
+  let right = nums.length - 1;
+  let firstPosition = -1;
+
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (nums[mid] === target) {
+      firstPosition = mid; // Record answer
+      right = mid - 1;     // Keep searching left for earlier targets
+    } else if (nums[mid] < target) {
+      left = mid + 1;
+    } else {
+      right = mid - 1;
+    }
+  }
+
+  return firstPosition;
+}
+```
+
+### The Upper Bound (Last Occurrence)
+Conversely, to find the *last* occurrence, you record the answer and keep shrinking the `left` boundary to search the right side.
+
+---
+
+## The Monotonic Decision Space
+
+The true power of Binary Search is that it is **not limited to arrays**. You can use binary search on any problem that presents a **Monotonic Search Space**.
+
+A Monotonic Search Space is a range of answers where a specific condition evaluates to `False` for the first half, and then permanently switches to `True` for the second half (or vice versa).
+
+```text
+Search Space:  [ False, False, False, True, True, True ]
+                                        ^
+                            First valid index (target)
+```
+
+### Classic Example: The Shipping Capacity Problem
+Imagine you have an array of weights representing packages, and you must ship them all within $D$ days. You need to find the **minimum ship capacity** required to achieve this.
+
+The capacity is a monotonic space:
+- Capacity `1`: Takes too many days (`False`)
+- Capacity `10`: Takes too many days (`False`)
+- Capacity `15`: Fits within $D$ days (`True`)
+- Capacity `1000`: Fits within $D$ days (`True`)
+
+Instead of testing every capacity from 1 to 1000, you can binary search the capacity!
+
+```ts
+function shipWithinDays(weights: number[], days: number): number {
+  // Min capacity is the heaviest single package
+  let left = Math.max(...weights); 
+  // Max capacity is the sum of all packages (shipped in 1 day)
+  let right = weights.reduce((a, b) => a + b, 0);
+  let minCapacity = right;
+
+  // Helper function to check if a capacity is valid
+  const isValid = (capacity: number): boolean => {
+    let daysNeeded = 1;
+    let currentLoad = 0;
+    for (const w of weights) {
+      if (currentLoad + w > capacity) {
+        daysNeeded++;
+        currentLoad = w;
+      } else {
+        currentLoad += w;
+      }
+    }
+    return daysNeeded <= days;
+  };
+
+  // Binary Search on the Answer Space!
+  while (left <= right) {
+    const mid = left + Math.floor((right - left) / 2);
+
+    if (isValid(mid)) {
+      minCapacity = mid; // Valid! Record it, but try to find a smaller one
+      right = mid - 1;
+    } else {
+      left = mid + 1; // Invalid. Capacity too small.
+    }
+  }
+
+  return minCapacity;
+}
+```
+
+This transforms a problem that would take $O(N \times \text{Sum(weights)})$ into a blindingly fast $O(N \log(\text{Sum(weights)}))$.
+
+## Related Articles
+
+- [Mastering Arrays: Contiguous Memory and Dynamic Scaling](/blog/dsa-arrays-guide)
+- [Sorting Visualized: Comparisons, Stability, and Complexities](/blog/dsa-sorting-algorithms)
+- [Hierarchical Data: Traversing Binary Trees and BST Properties](/blog/dsa-binary-trees)

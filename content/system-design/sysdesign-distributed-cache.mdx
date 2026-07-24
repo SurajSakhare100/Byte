@@ -1,0 +1,91 @@
+---
+title: "Distributed Caching: Redis, Eviction Policies, and Stampedes"
+description: Master the architecture of a Distributed Cache like Redis or Memcached. Understand Cache-Aside patterns, LRU/LFU eviction policies, and preventing Cache Stampedes.
+slug: sysdesign-distributed-cache
+date: 2026-02-25
+updated: 2026-02-25
+author: byte team
+category: System Design
+tags: [System Design, Caching, Performance]
+keywords:
+  - distributed cache architecture
+  - redis system design
+  - memcached architecture
+  - lru eviction policy
+  - cache stampede
+  - cache aside pattern
+coverImage: /assets/articles/system-design/sysdesign-distributed-cache-cover.webp
+readingTime: 12 min read
+featured: false
+draft: false
+---
+
+A database reads data from a hard drive (SSD), which takes several milliseconds. An in-memory cache reads data from RAM, which takes microseconds. A Distributed Cache (like **Redis** or **Memcached**) is an array of RAM-heavy servers that intercept read requests, dramatically reducing latency and preventing the primary database from melting under heavy load.
+
+---
+
+## 1. Caching Strategies (Read/Write Patterns)
+
+How and when data gets written to the cache drastically affects data consistency.
+
+### The Cache-Aside Pattern (Lazy Loading)
+This is the most common pattern in web development.
+1. The application checks the Cache for data.
+2. If the data is missing (Cache Miss), the application queries the slow Database.
+3. The application writes the data into the Cache and returns it to the user.
+- **Pros:** The cache only stores data that is actually requested, saving massive amounts of RAM.
+- **Cons:** The very first time data is requested, the user experiences high latency (Cache Penalty).
+
+### Write-Through Cache
+When the application updates a user's profile, it writes the data to the Cache and the Database *simultaneously*.
+- **Pros:** Data is absolutely guaranteed to be perfectly consistent between the DB and the Cache.
+- **Cons:** It increases write latency, and fills the cache with data that might never be read again.
+
+---
+
+## 2. Eviction Policies (Memory Management)
+
+Unlike a 10TB database, a Redis cluster might only have 100GB of RAM. It will inevitably fill up. When the cache is 100% full, the system must decide which old data to delete (Evict) to make room for new data.
+
+### Least Recently Used (LRU)
+The standard eviction policy. It drops the data that hasn't been accessed in the longest amount of time. 
+*Implementation:* Internally, LRU is built using a Hash Map combined with a Doubly Linked List. When an item is accessed, it is moved to the Head of the list. When the cache is full, the Tail of the list is chopped off.
+
+### Least Frequently Used (LFU)
+Evicts data that has the lowest access count overall.
+*Use Case:* If you want to permanently cache the Top 10 most popular songs of the decade, even if nobody requested them in the last 5 minutes.
+
+### Time-to-Live (TTL)
+Every key in the cache is assigned an expiration timer (e.g., `expire=3600s`). When the timer hits zero, the key vanishes. This is crucial for preventing stale data buildup over time.
+
+---
+
+## 3. The Danger of Cache Stampedes (Thundering Herd)
+
+A **Cache Stampede** is a catastrophic failure mode that brings down enterprise systems. 
+
+Imagine you are caching a highly expensive database query (e.g., "Calculate global sales stats for the day"), which takes 5 seconds to compute. The cache key has a TTL of 10 minutes.
+1. At exactly 10:00 AM, the TTL expires. The key is deleted.
+2. At 10:00:01 AM, 50,000 users refresh their dashboard.
+3. All 50,000 requests check the cache. They all get a Cache Miss simultaneously.
+4. All 50,000 requests hit the slow Database *at the exact same time* and ask it to compute the 5-second query.
+5. The Database CPU spikes to 100%, runs out of connections, and crashes entirely.
+
+### The Solution: Mutex Locks (Distributed Locks)
+When a Cache Miss occurs, the very first request acquires a **Distributed Lock** (using a tool like Redis Redlock). 
+- Request 1 holds the lock, queries the slow database, and begins updating the cache.
+- The other 49,999 requests see the lock is held. Instead of hitting the database, they pause and wait for 50 milliseconds, check the cache again, and successfully read the newly cached data!
+
+---
+
+## 4. Distributed Hashing and High Availability
+
+A single Redis node is a Single Point of Failure (SPOF). If it crashes, all traffic instantly slams the database, taking it offline. 
+
+To prevent this, distributed caches use a cluster of multiple nodes:
+- **Consistent Hashing:** As discussed in Key-Value store designs, keys are distributed across nodes using a Hash Ring, so losing one node only affects $1/N$ of the cached data.
+- **Master-Slave Replication:** Each active Redis node has a passive Replica node. If the Master node hardware dies, the Replica instantly promotes itself to Master without dropping any cached data.
+
+## Related Articles
+- [Distributed Key-Value Store Architecture](/blog/sysdesign-key-value-store)
+- [Designing an API Rate Limiter](/blog/sysdesign-rate-limiter)

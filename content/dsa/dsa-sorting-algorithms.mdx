@@ -1,0 +1,145 @@
+---
+title: "Sorting Visualized: Comparisons, Stability, and Non-Comparison Sorts"
+description: Master sorting algorithms including Quicksort, Mergesort, and Timsort. Learn time complexities, memory trade-offs, stability, and non-comparison sorting techniques.
+slug: dsa-sorting-algorithms
+date: 2025-10-01
+updated: 2025-10-01
+author: byte team
+category: DSA
+tags: [DSA, Sorting, Algorithms]
+keywords:
+  - sorting algorithms
+  - quicksort
+  - mergesort
+  - stable sorting
+  - time complexity sorting
+  - timsort
+  - radix sort
+  - dsa
+coverImage: /assets/articles/dsa/dsa-sorting-cover.webp
+readingTime: 14 min read
+featured: false
+draft: false
+---
+
+Sorting rearranges elements in a list into a specific order (numerical or alphabetical). It is the most common pre-processing step in computer science because it unlocks the ability to use extremely fast search algorithms, like Binary Search.
+
+---
+
+## The Big O Comparison Matrix
+
+No single sorting algorithm is perfect for every situation. You must choose an algorithm based on memory constraints, data size, and whether the data is already partially sorted.
+
+| Algorithm | Best Time | Average Time | Worst Time | Auxiliary Space | Stable | Notes |
+|---|---|---|---|---|---|---|
+| **Insertion Sort** | $O(N)$ | $O(N^2)$ | $O(N^2)$ | $O(1)$ | Yes | Excellent for tiny or almost-sorted arrays. |
+| **Merge Sort** | $O(N \log N)$ | $O(N \log N)$ | $O(N \log N)$ | $O(N)$ | Yes | Rock-solid dependable time, but requires extra memory. |
+| **Quick Sort** | $O(N \log N)$ | $O(N \log N)$ | $O(N^2)$ | $O(\log N)$ | No | The fastest in practice due to CPU cache locality, despite the $O(N^2)$ worst-case. |
+| **Heap Sort** | $O(N \log N)$ | $O(N \log N)$ | $O(N \log N)$ | $O(1)$ | No | Slower than Quicksort in practice, but strictly uses $O(1)$ space. |
+| **Timsort** | $O(N)$ | $O(N \log N)$ | $O(N \log N)$ | $O(N)$ | Yes | A hybrid of Merge Sort and Insertion Sort. Used natively in Python and V8 (JavaScript). |
+
+---
+
+## What is Sorting Stability?
+
+A sorting algorithm is **Stable** if it perfectly preserves the original relative order of duplicate elements.
+
+```text
+Input unsorted list:    [ Card-5(Spades), Card-3(Hearts), Card-5(Hearts) ]
+Sorted with STABLE:     [ Card-3(Hearts), Card-5(Spades), Card-5(Hearts) ]
+Sorted with UNSTABLE:   [ Card-3(Hearts), Card-5(Hearts), Card-5(Spades) ]
+```
+
+**Why does stability matter?**
+Imagine you have a list of e-commerce transactions sorted by `Date`. If you then sort that list by `User_ID` using a *Stable* sort, the transactions for each user will magically still be sorted by Date! If you used an Unstable sort (like Quicksort), the Date order within each User's block would be completely scrambled.
+
+---
+
+## Core Implementations: Merge Sort vs. Quick Sort
+
+### 1. Merge Sort (Divide and Conquer)
+Merge Sort splits the array in half repeatedly until it reaches single elements, then merges the sorted halves back together. It is heavily used for sorting Linked Lists because merging lists requires $O(1)$ extra space, unlike arrays which require $O(N)$ extra space.
+
+```ts
+function mergeSort(arr: number[]): number[] {
+  if (arr.length <= 1) return arr;
+
+  const mid = Math.floor(arr.length / 2);
+  // Recursively split the array
+  const left = mergeSort(arr.slice(0, mid));
+  const right = mergeSort(arr.slice(mid));
+
+  // Merge the sorted halves
+  return merge(left, right);
+}
+
+function merge(left: number[], right: number[]): number[] {
+  const result: number[] = [];
+  let i = 0, j = 0;
+
+  // Two pointer technique to merge sorted arrays
+  while (i < left.length && j < right.length) {
+    if (left[i] <= right[j]) {
+      result.push(left[i]);
+      i++;
+    } else {
+      result.push(right[j]);
+      j++;
+    }
+  }
+  // Append remaining elements
+  return result.concat(left.slice(i)).concat(right.slice(j));
+}
+```
+
+### 2. Quick Sort (In-Place Partitioning)
+Quick Sort picks a "Pivot" element, partitions the remaining elements into values smaller or larger than the pivot, and recursively sorts the partitions. Because it swaps elements in-place, it is incredibly cache-friendly and fast, but it is **Unstable**.
+
+```ts
+function quickSort(arr: number[], low = 0, high = arr.length - 1): number[] {
+  if (low < high) {
+    const pivotIndex = partition(arr, low, high);
+    quickSort(arr, low, pivotIndex - 1);
+    quickSort(arr, pivotIndex + 1, high);
+  }
+  return arr;
+}
+
+function partition(arr: number[], low: number, high: number): number {
+  const pivot = arr[high]; // Choosing the last element as pivot
+  let i = low - 1; // Index of smaller element
+
+  for (let j = low; j < high; j++) {
+    if (arr[j] < pivot) {
+      i++;
+      [arr[i], arr[j]] = [arr[j], arr[i]]; // Swap
+    }
+  }
+  // Place the pivot in its final sorted position
+  [arr[i + 1], arr[high]] = [arr[high], arr[i + 1]]; 
+  return i + 1;
+}
+```
+
+---
+
+## Non-Comparison Sorting (Breaking the $O(N \log N)$ Barrier)
+
+It is mathematically proven that any sorting algorithm that compares elements against each other (like Quicksort or Mergesort) cannot be faster than $O(N \log N)$. 
+
+However, if you know the *range* of the data in advance, you can use **Non-Comparison Sorts** to sort arrays in $O(N)$ linear time!
+
+### Counting Sort ($O(N + K)$)
+If you are sorting an array of 1 million integers, but you know all integers are strictly between `1` and `100` (e.g., test scores), you don't need to compare them.
+1. Create a `counts` array of size `101`.
+2. Iterate through the input and increment the count for each number: `counts[num]++`.
+3. Reconstruct the sorted array by iterating through the `counts` array.
+
+### Radix Sort
+Radix Sort groups numbers by individual digits. It sorts the array by the 1s place, then the 10s place, then the 100s place, usually leveraging Counting Sort under the hood. It runs in $O(N \times D)$ time, where $D$ is the number of digits in the largest number.
+
+## Related Articles
+
+- [Mastering Arrays: Contiguous Memory and Dynamic Scaling](/blog/dsa-arrays-guide)
+- [Binary Search: Mastering Monotonic Spaces and Boundary Conditions](/blog/dsa-binary-search)
+- [Hash Maps Under the Hood: Collisions, Chaining, and Resizing](/blog/dsa-hashing-hashmaps)

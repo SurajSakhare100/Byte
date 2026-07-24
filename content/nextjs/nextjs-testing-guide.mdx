@@ -1,0 +1,290 @@
+---
+title: "Testing Next.js Apps: Unit, Integration, and E2E"
+description: A complete guide to testing Next.js applications — from unit tests with Jest and React Testing Library to E2E tests with Playwright.
+slug: nextjs-testing-guide
+date: 2025-07-01
+updated: 2025-07-01
+author: byte team
+category: Next.js
+tags: [Next.js, Testing, Playwright]
+keywords:
+  - nextjs testing
+  - jest nextjs
+  - react testing library nextjs
+  - playwright nextjs e2e
+  - nextjs unit tests
+coverImage: /assets/articles/nextjs/nextjs-testing-cover.webp
+readingTime: 10 min read
+featured: false
+draft: false
+---
+
+Testing a Next.js application requires different strategies depending on whether you are verifying isolated utility code, component interactions, or full end-to-end (E2E) user flows. 
+
+- **Unit Testing:** Validates standalone functions (like formatters or calculations) in isolation.
+- **Component Testing:** Verifies that React components render and handle interactions correctly.
+- **End-to-End (E2E) Testing:** Launches a browser to test full user scenarios (like completing a checkout flow) against a running server.
+
+---
+
+## Configuring Jest and React Testing Library
+
+To get started, install Jest, its Next.js wrapper, and Testing Library helpers:
+
+```bash
+npm install --save-dev jest jest-environment-jsdom @testing-library/react @testing-library/jest-dom @testing-library/user-event ts-node
+```
+
+Create a setup script to initialize Testing Library matchers:
+
+```ts
+// jest.setup.ts
+import '@testing-library/jest-dom';
+```
+
+Next, configure Jest using the built-in `next/jest` compiler mapping:
+
+```ts
+// jest.config.ts
+import type { Config } from 'jest';
+import nextJest from 'next/jest.js';
+
+const createJestConfig = nextJest({
+  // Path to your Next.js app to load next.config.js and .env files
+  dir: './',
+});
+
+const config: Config = {
+  coverageProvider: 'v8',
+  testEnvironment: 'jsdom',
+  setupFilesAfterFramework: ['<rootDir>/jest.setup.ts'],
+  moduleNameMapper: {
+    // Handle path aliases
+    '^@/(.*)$': '<rootDir>/$1',
+  },
+};
+
+export default createJestConfig(config);
+```
+
+---
+
+## Testing Server Components (Async rendering)
+
+React Server Components are defined as `async` functions. Testing them requires invoking them and awaiting their resolution, then rendering the returned JSX structure.
+
+```tsx
+// components/PostList.tsx
+export interface Post {
+  id: string;
+  title: string;
+}
+
+export default async function PostList() {
+  const posts: Post[] = await fetch('https://api.example.com/posts')
+    .then((res) => {
+      if (!res.ok) throw new Error('API Error');
+      return res.json();
+    });
+
+  return (
+    <div>
+      <h2>Latest Posts</h2>
+      <ul>
+        {posts.map((post) => (
+          <li key={post.id}>{post.title}</li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+```
+
+Here is how you test this component by mocking the global `fetch` API:
+
+```tsx
+// components/PostList.test.tsx
+import { render, screen } from '@testing-library/react';
+import PostList from './PostList';
+
+// Mock global fetch
+const mockFetch = jest.fn();
+global.fetch = mockFetch;
+
+describe('PostList Server Component', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  it('renders a list of posts fetched from the API', async () => {
+    // Configure mock resolution
+    mockFetch.mockResolvedValueOnce({
+      ok: true,
+      json: () => Promise.resolve([
+        { id: '1', title: 'Next.js Testing Best Practices' },
+        { id: '2', title: 'React Server Components deep-dive' }
+      ]),
+    });
+
+    // Render the resolved async JSX payload
+    const resolvedJSX = await PostList();
+    render(resolvedJSX);
+
+    expect(screen.getByText('Latest Posts')).toBeInTheDocument();
+    expect(screen.getByText('Next.js Testing Best Practices')).toBeInTheDocument();
+    expect(screen.getByText('React Server Components deep-dive')).toBeInTheDocument();
+  });
+});
+```
+
+---
+
+## Mocking Navigation Hooks in Client Components
+
+Many client components depend on routing hooks from `next/navigation` (like `useRouter`, `usePathname`, or `useSearchParams`). You can mock these hooks inside your test files:
+
+```tsx
+// components/SearchBar.tsx
+'use client';
+
+import { useRouter, useSearchParams } from 'next/navigation';
+
+export default function SearchBar() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const currentQuery = searchParams.get('q') || '';
+
+  const handleSearch = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    const q = data.get('query');
+    router.push(`/search?q=${q}`);
+  };
+
+  return (
+    <form onSubmit={handleSearch}>
+      <input defaultValue={currentQuery} name="query" placeholder="Search..." />
+      <button type="submit">Go</button>
+    </form>
+  );
+}
+```
+
+```tsx
+// components/SearchBar.test.tsx
+import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import SearchBar from './SearchBar';
+
+const mockPush = jest.fn();
+const mockGet = jest.fn();
+
+// Mock next/navigation module
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: mockPush,
+  }),
+  useSearchParams: () => ({
+    get: mockGet,
+  }),
+}));
+
+describe('SearchBar', () => {
+  it('navigates to the search route when submitted', async () => {
+    mockGet.mockReturnValue('previous-search');
+    
+    render(<SearchBar />);
+    const input = screen.getByPlaceholderText('Search...');
+    const button = screen.getByRole('button', { name: 'Go' });
+
+    expect(input).toHaveValue('previous-search');
+
+    await userEvent.clear(input);
+    await userEvent.type(input, 'nextjs performance');
+    await userEvent.click(button);
+
+    expect(mockPush).toHaveBeenCalledWith('/search?q=nextjs performance');
+  });
+});
+```
+
+---
+
+## End-to-End Testing with Playwright
+
+Playwright runs tests in actual browsers (Chromium, Firefox, WebKit), making it suitable for verifying user-facing interactions.
+
+Initialize Playwright in your project:
+
+```bash
+npm install --save-dev @playwright/test
+npx playwright install
+```
+
+Configure Playwright to build and spin up your dev server automatically when running E2E tests:
+
+```ts
+// playwright.config.ts
+import { defineConfig, devices } from '@playwright/test';
+
+export default defineConfig({
+  testDir: './e2e',
+  fullyParallel: true,
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
+  workers: process.env.CI ? 1 : undefined,
+  reporter: 'html',
+  use: {
+    baseURL: 'http://localhost:3000',
+    trace: 'on-first-retry',
+  },
+  // Automatically spin up your local server before running tests
+  webServer: {
+    command: 'npm run build && npm run start',
+    url: 'http://localhost:3000',
+    reuseExistingServer: !process.env.CI,
+    timeout: 120000,
+  },
+  projects: [
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
+    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
+    { name: 'webkit', use: { ...devices['Desktop Safari'] } },
+  ],
+});
+```
+
+Here is a sample end-to-end test verifying a basic login flow:
+
+```ts
+// e2e/auth.spec.ts
+import { test, expect } from '@playwright/test';
+
+test.describe('Authentication Flow', () => {
+  test('redirects unauthorized users, then logs in successfully', async ({ page }) => {
+    // 1. Visit dashboard (should redirect to login)
+    await page.goto('/dashboard');
+    await expect(page).toHaveURL(/\/login/);
+
+    // 2. Fill login form
+    await page.fill('input[name="email"]', 'user@example.com');
+    await page.fill('input[name="password"]', 'securepassword123');
+    await page.click('button[type="submit"]');
+
+    // 3. Verify landing back on the dashboard
+    await expect(page).toHaveURL(/\/dashboard/);
+    await expect(page.locator('h1')).toContainText('Dashboard');
+  });
+});
+```
+
+Run your tests using the command-line CLI:
+- Run Jest tests: `npx jest`
+- Run Playwright E2E tests: `npx playwright test`
+
+For how testing connects to the deployment pipeline, see [deploying Next.js on Vercel](/blog/deploy-nextjs-on-vercel). For patterns you'll want to test, see [Server Actions](/blog/nextjs-server-actions).
+
+## Related Articles
+
+- [Next.js App Router: Everything You Need to Know](/blog/nextjs-app-router-everything)
+- [Server Actions in Next.js: Mutations Without an API Layer](/blog/nextjs-server-actions)
+- [How to Deploy a Next.js App on Vercel](/blog/deploy-nextjs-on-vercel)

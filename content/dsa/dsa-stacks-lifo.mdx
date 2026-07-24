@@ -1,0 +1,161 @@
+---
+title: "Understanding Stacks: LIFO Behavior, Memory Frames, and Monotonic Patterns"
+description: Learn core stack properties, how to build them using dynamic arrays or linked lists, call stack memory mechanics, and the advanced Monotonic Stack algorithm pattern.
+slug: dsa-stacks-lifo
+date: 2025-09-10
+updated: 2025-09-10
+author: byte team
+category: DSA
+tags: [DSA, Stacks, Memory]
+keywords:
+  - dsa stack
+  - LIFO stack
+  - call stack
+  - matching parentheses
+  - monotonic stack
+  - linked list stack
+  - data structures
+coverImage: /assets/articles/dsa/dsa-stacks-cover.webp
+readingTime: 12 min read
+featured: false
+draft: false
+---
+
+A stack is a linear, restricted-access data structure that strictly follows the **Last-In, First-Out (LIFO)** protocol. You can visualize a stack like a physical stack of plates in a cafeteria: you can only add a new plate to the very top, and when you need a plate, you must take the one from the very top. The last plate added is the first one removed.
+
+Unlike arrays, you are not allowed to access elements in the middle of a stack. You can only interact with the `Top` element.
+
+---
+
+## Real-world Stack Operations
+
+Stacks are foundational to both software applications and operating systems:
+- **Browser History:** Pressing the "Back" button pops the last visited URL off your history stack.
+- **Undo Engines (Ctrl+Z):** Text editors push edits onto a stack; pressing Undo pops the last action and reverts the state.
+- **Compiler Syntax Parsing:** Validating brackets `{}`, parentheses `()`, and HTML tags `<tag>` uses stacks.
+- **The Call Stack:** The runtime environment (like V8 in Node.js or the JVM in Java) uses a memory stack to manage active function execution frames.
+
+---
+
+## Build Implementations: Array vs. Linked List
+
+You can implement a stack backed by a dynamic array or a singly linked list. Both offer $O(1)$ performance for standard operations.
+
+### 1. Array-Backed Stack Implementation
+The top of the stack is represented by the end of the array. We use `push()` and `pop()` methods on the array, which operate in $O(1)$ amortized time.
+
+```ts
+class ArrayStack<T> {
+  private items: T[] = [];
+
+  // O(1) Amortized
+  public push(element: T): void {
+    this.items.push(element); 
+  }
+
+  // O(1)
+  public pop(): T | undefined {
+    return this.items.pop(); 
+  }
+
+  // O(1)
+  public peek(): T | undefined {
+    return this.items[this.items.length - 1]; 
+  }
+
+  // O(1)
+  public isEmpty(): boolean {
+    return this.items.length === 0;
+  }
+}
+```
+
+### 2. Linked List Stack Implementation
+If you want to guarantee strict $O(1)$ operations without the risk of an occasional dynamic array resize delay, you can back your stack with a linked list. The top of the stack is represented by the Head node.
+
+```ts
+class StackNode<T> {
+  val: T;
+  next: StackNode<T> | null = null;
+  constructor(val: T) { this.val = val; }
+}
+
+class LinkedListStack<T> {
+  private top: StackNode<T> | null = null;
+
+  // Insert at the Head: O(1)
+  public push(element: T): void {
+    const newNode = new StackNode(element);
+    newNode.next = this.top;
+    this.top = newNode; 
+  }
+
+  // Remove from the Head: O(1)
+  public pop(): T | undefined {
+    if (!this.top) return undefined;
+    const poppedValue = this.top.val;
+    this.top = this.top.next; 
+    return poppedValue;
+  }
+}
+```
+
+---
+
+## The Call Stack and Memory Frames
+
+When your program calls a function, the runtime creates a **Stack Frame** (Activation Record) and pushes it onto the system's Call Stack. This frame isolates the function's execution state and stores:
+- Local variables initialized within the function.
+- Input parameters passed to the function.
+- The return address (the exact line of code to resume after the function finishes).
+
+```text
+[ Stack Frame: functionThree() - local vars ]  <- Current execution point
+[ Stack Frame: functionTwo()   - local vars ]
+[ Stack Frame: functionOne()   - local vars ]
+[ Stack Frame: global()        - global vars]
+```
+
+When `functionThree()` completes, its stack frame is `popped` off, releasing its memory, and the CPU resumes executing `functionTwo()`. 
+
+If your program enters an infinite recursive loop, it pushes endless frames onto the stack until it exceeds the operating system's allocated memory limit, resulting in a fatal **Stack Overflow** crash.
+
+---
+
+## Advanced Pattern: The Monotonic Stack
+
+A **Monotonic Stack** is an advanced pattern used to solve a specific class of problems in $O(N)$ time instead of the naive $O(N^2)$ brute force. A monotonic stack is simply a standard stack where the elements are forced to stay completely sorted (either strictly increasing or strictly decreasing).
+
+If adding a new element violates the sorted order, you must `pop` elements off the stack until the order can be maintained.
+
+### Example: "Next Greater Element"
+Given an array `[2, 1, 2, 4, 3]`, find the next greater element to the right for every element. If none exists, output `-1`.
+Expected Output: `[4, 2, 4, -1, -1]`
+
+```tsx
+function nextGreaterElements(nums: number[]): number[] {
+  const result = new Array(nums.length).fill(-1);
+  const stack: number[] = []; // Will store INDICES, keeping them monotonically decreasing in value
+
+  for (let i = 0; i < nums.length; i++) {
+    // While the current element is greater than the element at the top of the stack...
+    while (stack.length > 0 && nums[i] > nums[stack[stack.length - 1]]) {
+      // We found the "next greater element" for the index at the top of the stack!
+      const topIndex = stack.pop()!;
+      result[topIndex] = nums[i];
+    }
+    // Push the current index onto the stack
+    stack.push(i);
+  }
+
+  return result;
+}
+```
+
+By using a monotonic stack, every element is pushed exactly once and popped exactly once, bringing the time complexity down from $O(N^2)$ to an incredibly efficient $O(N)$.
+
+## Related Articles
+
+- [Demystifying Linked Lists: Traversal, Pointers, and Reversal](/blog/dsa-linked-lists)
+- [Deep Dive into Queues: FIFO Buffers and Circular Arrays](/blog/dsa-queues-fifo)
+- [Recursion & Backtracking: Call Stack Mechanics and State Spaces](/blog/dsa-recursion-backtracking)

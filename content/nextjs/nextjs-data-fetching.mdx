@@ -1,0 +1,180 @@
+---
+title: "Data Fetching in Next.js: Patterns for Every Use Case"
+description: A clear breakdown of every data-fetching pattern in the App Router — static, dynamic, streaming, parallel, and sequential — with code you can use.
+slug: nextjs-data-fetching
+date: 2025-05-05
+updated: 2025-05-05
+author: byte team
+category: Next.js
+tags: [Next.js, Data Fetching, React]
+keywords:
+  - nextjs data fetching
+  - nextjs static generation
+  - nextjs server components fetch
+  - parallel data fetching nextjs
+  - nextjs streaming suspense
+coverImage: /assets/articles/nextjs/nextjs-data-fetching-cover.webp
+readingTime: 10 min read
+featured: false
+draft: false
+---
+
+Data fetching in the Next.js App Router represents a shift in how React apps retrieve data. Instead of lifecycle methods, client-side fetches, or configuration boilerplate (like `getServerSideProps` in the Pages Router), the App Router centers on React Server Components (RSC) to handle data loading at the component level.
+
+## Server-First Data Fetching
+
+In the App Router, your components are Server Components by default. This enables several advantages when retrieving data:
+- **Direct Database Access:** You can run database queries or connect directly to backend APIs from within the component body.
+- **Improved Security:** Keeps API keys, tokens, and DB connection strings secure on the server, avoiding exposure to the client.
+- **Smaller Bundles:** Since dependencies like databases, markdown parsers, or XML utilities stay on the server, they are excluded from the client JavaScript bundle.
+- **Colocated Fetching:** You can fetch data directly inside the component that uses it, rather than passing props through multiple levels of the component tree.
+
+---
+
+## Static vs. Dynamic Fetching
+
+Next.js automatically determines if a route segment should be statically generated or dynamically rendered. This depends on whether you fetch static data or read dynamic values from the request context.
+
+### Static Data Fetching
+If you make a basic `fetch` request, Next.js caches the response value at build time by default. This makes page loads near-instant because the HTML is already pre-built on the server.
+
+```tsx
+interface Post {
+  id: string;
+  title: string;
+}
+
+// Statically generated page
+export default async function BlogIndex() {
+  const res = await fetch('https://api.example.com/posts');
+  const posts: Post[] = await res.json();
+
+  return (
+    <ul className="space-y-2">
+      {posts.map((post) => (
+        <li key={post.id}>{post.title}</li>
+      ))}
+    </ul>
+  );
+}
+```
+
+### Dynamic Data Fetching
+Next.js dynamically renders a page if you use dynamic functions like:
+- `cookies()`
+- `headers()`
+- `useSearchParams()` (in client components)
+- `fetch()` with `cache: 'no-store'` or `revalidate: 0` options.
+
+```tsx
+import { cookies } from 'next/headers';
+
+export default async function UserProfile() {
+  const cookieStore = await cookies();
+  const userId = cookieStore.get('userId')?.value;
+
+  // Since cookies are dynamic, this query executes on every request
+  const user = await fetch(`https://api.example.com/users/${userId}`, {
+    cache: 'no-store',
+  }).then((r) => r.json());
+
+  return <div>Welcome back, {user.name}</div>;
+}
+```
+
+---
+
+## Parallel vs. Sequential Fetching
+
+When loading multiple datasets on a single page, consider how the requests run: sequentially (waiting for each other) or in parallel (concurrently).
+
+### Avoid Waterfalls (Sequential Fetching)
+If you place `await` statements one after the other, you create a network waterfall where the second request does not start until the first one completes.
+
+```tsx
+// Waterfall (Slow)
+export default async function Page() {
+  // Wait 100ms
+  const user = await getUser();
+  // Wait 200ms (Total: 300ms)
+  const settings = await getSettings(user.id); 
+
+  return <ProfileCard user={user} settings={settings} />;
+}
+```
+
+Sometimes a waterfall is unavoidable if a request depends on the result of a previous one. However, if they are independent, fetch them in parallel instead.
+
+### Concurrency (Parallel Fetching)
+Trigger all requests simultaneously, then resolve them concurrently:
+
+```tsx
+// Parallel (Fast)
+export default async function DashboardPage() {
+  // Start both requests instantly
+  const userPromise = getUser();
+  const statsPromise = getStats();
+
+  // Wait for all promises to resolve
+  const [user, stats] = await Promise.all([userPromise, statsPromise]);
+
+  return <DashboardView user={user} stats={stats} />;
+}
+```
+
+---
+
+## Request Memoization and React `cache`
+
+Next.js automatically caches `fetch` calls during a single server request, but what if you retrieve data using direct database queries, an SDK (like Prisma), or a custom API client? 
+
+Since these libraries do not use the global `fetch` API directly, React provides a **`cache`** utility to deduplicate data fetching requests manually:
+
+```ts
+// lib/get-user.ts
+import { cache } from 'react';
+import { db } from '@/lib/db';
+
+export const getCachedUser = cache(async (id: string) => {
+  console.log(`Executing database query for user: ${id}`);
+  return await db.user.findUnique({
+    where: { id },
+  });
+});
+```
+
+Now, no matter how many independent components call `getCachedUser('123')` during a single page render, the database query executes once.
+
+---
+
+## Client-side Fetching with React Query / SWR
+
+For dynamic interfaces (like real-time searches, paginated tables, or auto-refreshing logs), client-side fetching is still the best tool. SWR or React Query can be integrated alongside Server Components:
+
+```tsx
+'use client';
+
+import useSWR from 'swr';
+
+const fetcher = (url: string) => fetch(url).then((r) => r.json());
+
+export default function RealTimePrice({ symbol }: { symbol: string }) {
+  // Poll data every 5 seconds on the client
+  const { data, error } = useSWR(`/api/price?symbol=${symbol}`, fetcher, {
+    refreshInterval: 5000,
+  });
+
+  if (error) return <div>Failed to load price data.</div>;
+  if (!data) return <div>Updating...</div>;
+
+  return <div className="text-2xl font-bold">${data.price}</div>;
+}
+```
+
+For caching in depth, see [performance tips](/blog/nextjs-performance-tips). For writing data back, see [Server Actions](/blog/nextjs-server-actions).
+
+## Related Articles
+
+- [Next.js Performance Tips: What Actually Moves the Needle](/blog/nextjs-performance-tips)
+- [Server Actions in Next.js: Mutations Without an API Layer](/blog/nextjs-server-actions)
+- [Next.js App Router: Everything You Need to Know](/blog/nextjs-app-router-everything)

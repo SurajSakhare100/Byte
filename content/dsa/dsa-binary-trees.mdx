@@ -1,0 +1,156 @@
+---
+title: "Hierarchical Data: Traversing Binary Trees, BSTs, and Tries"
+description: Explore hierarchical structures, pre-order/in-order/post-order traversals, Binary Search Tree properties, self-balancing trees, and Tries.
+slug: dsa-binary-trees
+date: 2025-09-20
+updated: 2025-09-20
+author: byte team
+category: DSA
+tags: [DSA, Trees, Algorithms]
+keywords:
+  - binary tree
+  - binary search tree
+  - BST
+  - inorder traversal
+  - DFS trees
+  - self balancing tree
+  - trie prefix tree
+  - data structures
+coverImage: /assets/articles/dsa/dsa-binary-trees-cover.webp
+readingTime: 14 min read
+featured: true
+draft: false
+---
+
+Unlike arrays and linked lists, which store data sequentially in a flat line, **Trees** represent hierarchical, non-linear structures. They map perfectly to real-world systems like folder directories in an OS, the DOM tree in an HTML document, or the organizational chart of a company.
+
+A **Binary Tree** is a specific type of tree where each node can have at most two child nodes, typically referred to as the `left` child and the `right` child.
+
+---
+
+## Depth-First Tree Traversal Protocols
+
+To search, clone, or process elements in a tree, you must visit all nodes. Because trees are non-linear, you can't just run a simple `for` loop. We rely on **Depth-First Search (DFS)** traversals.
+
+There are three primary depth-first traversal patterns, defined entirely by *when* the algorithm processes the current node relative to its children:
+
+```text
+       (1: Root)
+       /       \
+  (2: Left)  (3: Right)
+```
+
+1. **Pre-Order Traversal (`Root -> Left -> Right`):** 
+   - *Use Case:* Used to clone a tree perfectly, or evaluate mathematical expression trees (Prefix notation).
+2. **In-Order Traversal (`Left -> Root -> Right`):** 
+   - *Use Case:* When run on a Binary Search Tree, this visits elements in perfectly sorted ascending order.
+3. **Post-Order Traversal (`Left -> Right -> Root`):** 
+   - *Use Case:* Used to safely delete nodes from memory (you must delete children before parents), or calculate directory storage sizes from the bottom up.
+
+---
+
+## Binary Search Tree (BST)
+
+A Binary Search Tree (BST) is a binary tree that maintains a strictly sorted structure:
+- The left subtree of a node contains ONLY values **strictly less than** the node's value.
+- The right subtree of a node contains ONLY values **strictly greater than** the node's value.
+- The left and right subtrees must themselves be valid BSTs.
+
+```text
+       8
+      / \
+     3   10
+    / \    \
+   1   6    14
+```
+
+Because of this sorted structure, every time you make a decision to go left or right, you discard half of the remaining nodes. You can search, insert, or delete elements in **$O(\log N)$ average time**, identical to binary search in arrays.
+
+### The Danger of Unbalanced BSTs
+If you insert pre-sorted data into a basic BST (e.g., `[1, 2, 3, 4, 5]`), the tree never branches left. It becomes a skewed, straight line that looks exactly like a Linked List. The search complexity degrades catastrophically to **$O(N)$**. 
+
+To prevent this, production systems (like database indexing algorithms) use **Self-Balancing Trees** (such as **AVL Trees** or **Red-Black Trees**). These trees automatically detect when a branch is getting too long and perform complex pointer rotations to keep the tree perfectly balanced at all times.
+
+---
+
+## Advanced Tree Variations
+
+### 1. The Trie (Prefix Tree)
+A Trie is an incredibly efficient tree designed specifically for string manipulation and prefix matching. It is the underlying data structure used for:
+- Search engine autocomplete suggestions.
+- Spell checkers.
+- IP routing longest-prefix matching.
+
+In a Trie, edges (or nodes) represent individual characters. The path from the root to a node spells out a word. Searching for a string of length $L$ takes $O(L)$ time, regardless of how many millions of words are stored in the dictionary!
+
+### 2. The Binary Heap (Priority Queue)
+A Binary Heap is a complete binary tree where the parent node is strictly greater than (Max-Heap) or strictly less than (Min-Heap) its children. It is used to implement Priority Queues and is the backbone of **Dijkstra's Shortest Path Algorithm**. 
+Fascinatingly, because Heaps are strictly complete trees (filled left-to-right), they are usually implemented internally using a flat Array rather than Node objects with pointers, saving immense amounts of memory.
+
+---
+
+## Complete BST Implementation (TypeScript)
+
+Here is a full code reference for a Binary Search Tree, including insertion, search, and a recursive In-Order traversal:
+
+```ts
+class TreeNode {
+  val: number;
+  left: TreeNode | null = null;
+  right: TreeNode | null = null;
+  constructor(val: number) { this.val = val; }
+}
+
+class BinarySearchTree {
+  private root: TreeNode | null = null;
+
+  // Average: O(log N) | Worst: O(N)
+  public insert(val: number): void {
+    this.root = this.insertNode(this.root, val);
+  }
+
+  private insertNode(node: TreeNode | null, val: number): TreeNode {
+    if (!node) return new TreeNode(val);
+
+    if (val < node.val) {
+      node.left = this.insertNode(node.left, val);
+    } else {
+      node.right = this.insertNode(node.right, val);
+    }
+    return node;
+  }
+
+  // Average: O(log N) | Worst: O(N)
+  public search(val: number): boolean {
+    return this.searchNode(this.root, val);
+  }
+
+  private searchNode(node: TreeNode | null, val: number): boolean {
+    if (!node) return false;
+    if (node.val === val) return true;
+
+    return val < node.val
+      ? this.searchNode(node.left, val)
+      : this.searchNode(node.right, val);
+  }
+
+  // In-order traversal (Left -> Root -> Right)
+  // Returns elements in sorted order!
+  public traverseInOrder(node = this.root, result: number[] = []): number[] {
+    if (node !== null) {
+      this.traverseInOrder(node.left, result);
+      result.push(node.val);
+      this.traverseInOrder(node.right, result);
+    }
+    return result;
+  }
+}
+```
+
+For how recursion powers tree traversals under the hood, see [recursion and backtracking](/blog/dsa-recursion-backtracking).
+
+## Related Articles
+
+- [Recursion & Backtracking: Call Stack Mechanics and State Spaces](/blog/dsa-recursion-backtracking)
+- [Graph Traversals: Node Exploration using BFS and DFS](/blog/dsa-graphs-bfs-dfs)
+- [Binary Search: Mastering Monotonic Spaces and Boundary Conditions](/blog/dsa-binary-search)

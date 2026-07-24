@@ -1,0 +1,226 @@
+---
+title: "Internationalization in Next.js with next-intl"
+description: Add i18n routing, locale detection, and translated content to a Next.js App Router project using the next-intl library.
+slug: nextjs-internationalization
+date: 2025-06-10
+updated: 2025-06-10
+author: byte team
+category: Next.js
+tags: [Next.js, i18n, Localization]
+keywords:
+  - nextjs internationalization
+  - next-intl
+  - nextjs i18n routing
+  - nextjs locale
+  - nextjs multilingual
+coverImage: /assets/articles/nextjs/nextjs-i18n-cover.webp
+readingTime: 8 min read
+featured: false
+draft: false
+---
+
+Providing localization support in a modern web application involves solving two primary challenges: **Localized Routing** (ensuring `/fr/dashboard` serves French content, while `/en/dashboard` serves English) and **Message Translation** (translating UI strings dynamically). 
+
+In the Next.js App Router, these challenges are resolved by nesting routes inside a dynamic `[locale]` segment and using a library like `next-intl` to manage translations across Server and Client Components.
+
+---
+
+## Folder Structure for Localization
+
+To implement localized routing, restructure your `app/` folder to nest all page segments under a dynamic `[locale]` parameter:
+
+```text
+app/
+├── [locale]/
+│   ├── layout.tsx       # Root layout for localized routes
+│   ├── page.tsx         # /en or /fr
+│   ├── about/
+│   │   └── page.tsx     # /en/about or /fr/about
+│   └── blog/
+│       └── page.tsx     # /en/blog or /fr/blog
+├── layout.tsx           # Global root layout (empty shell)
+└── middleware.ts        # Language detection and redirects
+```
+
+This structure makes the active `locale` parameter available to all nested layout and page components as a route parameter.
+
+---
+
+## Configuring dictionaries and next-intl
+
+Create dictionary files for your supported languages at the project root:
+
+```json
+// messages/en.json
+{
+  "Navigation": {
+    "home": "Home",
+    "about": "About Us"
+  },
+  "WelcomeMessage": {
+    "greeting": "Hello {name}, welcome back!",
+    "unreadCount": "{count, plural, =0 {No unread messages} one {# unread message} other {# unread messages}}"
+  }
+}
+```
+
+```json
+// messages/fr.json
+{
+  "Navigation": {
+    "home": "Accueil",
+    "about": "À propos"
+  },
+  "WelcomeMessage": {
+    "greeting": "Bonjour {name}, bon retour !",
+    "unreadCount": "{count, plural, =0 {Pas de messages non lus} one {# message non lu} other {# messages non lus}}"
+  }
+}
+```
+
+Create a request configuration file to load these messages dynamically on the server:
+
+```ts
+// i18n/request.ts
+import { getRequestConfig } from 'next-intl/server';
+
+export default getRequestConfig(async ({ locale }) => {
+  return {
+    messages: (await import(`../messages/${locale}.json`)).default,
+  };
+});
+```
+
+---
+
+## Wrapping Layout with Translation Context
+
+In your localized layout component, load messages dynamically and wrap your page in `NextIntlClientProvider` so that child components can access them:
+
+```tsx
+// app/[locale]/layout.tsx
+import { NextIntlClientProvider } from 'next-intl';
+import { getMessages } from 'next-intl/server';
+import { notFound } from 'next/navigation';
+
+const SUPPORTED_LOCALES = ['en', 'fr'];
+
+export default async function LocaleLayout({
+  children,
+  params,
+}: {
+  children: React.ReactNode;
+  params: { locale: string };
+}) {
+  const { locale } = await params;
+
+  // Validate that the incoming locale is supported
+  if (!SUPPORTED_LOCALES.includes(locale)) {
+    notFound();
+  }
+
+  // Load message dictionary for this request
+  const messages = await getMessages();
+
+  return (
+    <html lang={locale}>
+      <body className="antialiased">
+        <NextIntlClientProvider messages={messages}>
+          {children}
+        </NextIntlClientProvider>
+      </body>
+    </html>
+  );
+}
+```
+
+---
+
+## Using Translations in Components
+
+### 1. Server Components
+You can use translations directly in server-rendered components without increasing the client bundle size:
+
+```tsx
+// app/[locale]/page.tsx
+import { useTranslations } from 'next-intl';
+
+export default function HomePage() {
+  const t = useTranslations('WelcomeMessage');
+
+  return (
+    <div className="p-8">
+      <h1>{t('greeting', { name: 'Alex' })}</h1>
+      <p>{t('unreadCount', { count: 3 })}</p>
+    </div>
+  );
+}
+```
+
+### 2. Client Components
+If your component has interactive elements and uses the `'use client'` directive, the translation hooks work the same way:
+
+```tsx
+// components/LanguageSelector.tsx
+'use client';
+
+import { usePathname, useRouter } from 'next/navigation';
+import { useLocale } from 'next-intl';
+
+export default function LanguageSelector() {
+  const router = useRouter();
+  const pathname = usePathname();
+  const currentLocale = useLocale();
+
+  const handleLanguageChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const nextLocale = e.target.value;
+    // Replace the current locale prefix in the URL path
+    const cleanPath = pathname.replace(`/${currentLocale}`, `/${nextLocale}`);
+    router.push(cleanPath);
+  };
+
+  return (
+    <select value={currentLocale} onChange={handleLanguageChange}>
+      <option value="en">English</option>
+      <option value="fr">Français</option>
+    </select>
+  );
+}
+```
+
+---
+
+## Automatic Redirection via Middleware
+
+To detect the visitor's preferred language from their browser headers and route them to the correct path, configure `next-intl`'s routing middleware:
+
+```ts
+// middleware.ts
+import createMiddleware from 'next-intl/middleware';
+
+export default createMiddleware({
+  // Supported locales
+  locales: ['en', 'fr'],
+
+  // Default locale if no matching browser preference is found
+  defaultLocale: 'en',
+
+  // Prevent locale prefixing on the default language (optional)
+  localePrefix: 'as-needed',
+});
+
+export const config = {
+  // Match all paths except internal assets and static folders
+  matcher: ['/((?!api|_next/static|_next/image|favicon.ico|assets).*)'],
+};
+```
+
+This setup routes users accessing `/` to `/en` or `/fr` based on their browser settings.
+
+For more on the middleware pattern, see [Next.js Middleware guide](/blog/nextjs-middleware-guide). For how locale routing affects SEO, see [Next.js SEO](/blog/nextjs-seo).
+
+## Related Articles
+
+- [Next.js Middleware: Edge Logic Without a Separate Server](/blog/nextjs-middleware-guide)
+- [SEO that fits naturally into a Next.js app](/blog/nextjs-seo)
+- [Next.js App Router: Everything You Need to Know](/blog/nextjs-app-router-everything)
